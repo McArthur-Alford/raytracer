@@ -1,0 +1,15 @@
+[package]
+name = "simplest-shader"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+spirv-std = { workspace = true }
+shared = { workspace = true }
+# glam = { workspace = true }

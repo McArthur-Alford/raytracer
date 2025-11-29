@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+
+[package]
+name = "builder"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+spirv-builder = { git = "https://github.com/rust-gpu/rust-gpu", branch = "main" }

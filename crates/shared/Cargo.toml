@@ -1,0 +1,11 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+spirv-std = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }

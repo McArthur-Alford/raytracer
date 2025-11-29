@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/runner", "crates/shared", "crates/simplest-shader"]
+exclude = ["builder"]
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = [
+  'cfg(target_arch, values("spirv"))',
+] }
+
+[workspace.dependencies]
+spirv-std = { git = "https://github.com/rust-gpu/rust-gpu", branch = "main" }
+glam = "0.30.9"
+bytemuck = { version = "1.24.0", features = ["derive"] }
+clap = { version = "4.5.51", features = ["derive"] }
+env_logger = "0.11.8"
+futures = "0.3.31"
+strum = "0.27.2"
+wgpu = { version = "27.0.1", features = ["spirv", "vulkan-portability"] }
+winit = "0.30.12"
+shared = { path = "crates/shared" }
+tokio = "1.48.0"
+log = "0.4.28"
+anyhow = "1.0.100"
