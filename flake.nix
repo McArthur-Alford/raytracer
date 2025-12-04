@@ -45,8 +45,6 @@
           "rustfmt"
         ];
 
-        spirvToolchain = pkgs.rust-bin.fromRustupToolchainFile ./shaders/rust-toolchain.toml;
-
         craneLib = (crane.mkLib pkgs).overrideToolchain (rustToolchain);
 
         runtimeDeps = (
@@ -66,21 +64,15 @@
             libX11
           ])
         );
-
-        spirvPath = pkgs.lib.makeBinPath [ spirvToolchain ];
       in
       {
-        # packages.default = craneLib.buildPackage {
-        #   src = craneLib.cleanCargoSource ./.;
-        # };
+        packages.default = craneLib.buildPackage {
+          src = craneLib.cleanCargoSource ./.;
+        };
 
         devShells.default = craneLib.devShell {
           # RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
           LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath runtimeDeps}";
-
-          # Spirv Stuff:
-          SPIRV_PATH = spirvPath;
-          SPIRV_CARGO = "${spirvToolchain}/bin/cargo";
 
           hardeningDisable = [ "fortify" ];
 
@@ -89,6 +81,8 @@
               rust-analyzer
               wgsl-analyzer
               just
+              shader-slang
+              spirv-tools
             ])
             ++ runtimeDeps;
         };

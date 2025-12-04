@@ -4,11 +4,8 @@ mod new_ray;
 mod path;
 mod queue;
 mod render;
+mod slang_reflect;
 mod texture;
-
-mod shaders {
-    include!(env!("SHADERS_ENTRYPOINTS"));
-}
 
 use std::sync::Arc;
 

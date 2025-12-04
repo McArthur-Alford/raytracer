@@ -18,8 +18,10 @@ impl LogicPhase {
         material_queues: &[queue::Queue],
         dims: (u32, u32),
     ) -> Self {
-        let compute_shader =
-            device.create_shader_module(wgpu::include_spirv!(env!("SHADERS_PATH")));
+        let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("LogicPhase"),
+            source: wgpu::ShaderSource::Wgsl(include_wesl!("logic").into()),
+        });
 
         // Pixel output buffer (atomically written to in shader?):
         let output_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -77,7 +79,7 @@ impl LogicPhase {
             label: Some("LogicPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some(crate::shaders::logic::cs_main),
+            entry_point: Some("cs_main"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });

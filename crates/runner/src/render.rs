@@ -70,7 +70,7 @@ impl RenderPhase {
     ) -> Self {
         // Load the shaders
         let render_shader =
-            device.create_shader_module(wgpu::include_spirv!(env!("SHADERS_PATH")).into());
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/render.spv")));
 
         // Create the index buffer
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -83,11 +83,24 @@ impl RenderPhase {
         // Creating the texture
         let diffuse_texture = texture::Texture::new(&device, texture_size).unwrap();
 
+        let view_bg = *crate::slang_reflect::RENDER_REFLECTION
+            .get("fragmentMain.tDiffuse.bind_group")
+            .unwrap() as u32;
+        let view_bi = *crate::slang_reflect::RENDER_REFLECTION
+            .get("fragmentMain.tDiffuse.bind_index")
+            .unwrap() as u32;
+        let sample_bg = *crate::slang_reflect::RENDER_REFLECTION
+            .get("fragmentMain.sDiffuse.bind_group")
+            .unwrap() as u32;
+        let sample_bi = *crate::slang_reflect::RENDER_REFLECTION
+            .get("fragmentMain.sDiffuse.bind_index")
+            .unwrap() as u32;
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
-                        binding: 0,
+                        binding: view_bi,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
@@ -97,7 +110,7 @@ impl RenderPhase {
                         count: None,
                     },
                     wgpu::BindGroupLayoutEntry {
-                        binding: 1,
+                        binding: sample_bi,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
@@ -110,16 +123,18 @@ impl RenderPhase {
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
-                    binding: 0,
+                    binding: view_bi,
                     resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: sample_bi,
                     resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
                 },
             ],
             label: Some("diffuse_bind_group"),
         });
+
+        dbg!(&diffuse_bind_group);
 
         // Create the render pipeline here:
         let render_pipeline_layout =
@@ -134,7 +149,7 @@ impl RenderPhase {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &render_shader,
-                entry_point: Some(crate::shaders::render::vs_main),
+                entry_point: Some("vertexMain"),
                 buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
@@ -155,7 +170,7 @@ impl RenderPhase {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &render_shader,
-                entry_point: Some(crate::shaders::render::fs_main),
+                entry_point: Some("fragmentMain"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
