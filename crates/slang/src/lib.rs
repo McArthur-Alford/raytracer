@@ -5,9 +5,9 @@ use crate::{representation::Reflection, traversal::walk_json};
 mod backend;
 mod key;
 mod representation;
-mod slang_program;
+pub mod slang_program;
 mod traversal;
-// mod webgpu;
+mod webgpu;
 
 pub use traversal::Position;
 

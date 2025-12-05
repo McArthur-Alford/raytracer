@@ -10,8 +10,13 @@ pub struct Position {
 }
 
 pub fn walk_json(reflection: Reflection, out: &mut HashMap<String, Position>) {
-    for ep in reflection.entry_points {
+    let position = Position::default();
+    for param in reflection.parameters {
         let position = Position::default();
+        walk_param("params", param, position, out);
+    }
+    for ep in reflection.entry_points {
+        let position = position.clone();
         for param in ep.parameters {
             walk_param(&ep.name, param, position, out);
         }
@@ -25,26 +30,28 @@ pub fn walk_param(
     mut position: Position,
     out: &mut HashMap<String, Position>,
 ) {
-    match param.bindings.binding {
-        Some(Binding::VaryingInput { index, count }) => {}
-        Some(Binding::VaryingOutput { index, count }) => {}
-        Some(Binding::DescriptorTableSlot { index, count }) => {
-            position.bind_index += index as usize;
+    for binding in param.bindings.collect() {
+        match Some(binding) {
+            Some(Binding::VaryingInput { index, count }) => {}
+            Some(Binding::VaryingOutput { index, count }) => {}
+            Some(Binding::DescriptorTableSlot { index, count }) => {
+                position.bind_index += index as usize;
+            }
+            Some(Binding::SubElementRegisterSpace { index, count }) => {
+                position.bind_group += index as usize;
+                position.bind_group = position.bind_group.max(1);
+            }
+            Some(Binding::Uniform {
+                offset,
+                size,
+                element_stride,
+            }) => {
+                dbg!(size);
+                dbg!(element_stride);
+                position.byte_offset += offset as usize;
+            }
+            None => {}
         }
-        Some(Binding::SubElementRegisterSpace { index, count }) => {
-            position.bind_group += index as usize;
-            position.bind_group = position.bind_group.max(1);
-        }
-        Some(Binding::Uniform {
-            offset,
-            size,
-            element_stride,
-        }) => {
-            dbg!(size);
-            dbg!(element_stride);
-            position.byte_offset += offset as usize;
-        }
-        None => {}
     }
 
     let name = param.name.clone();

@@ -13,22 +13,32 @@ pub struct EntryPoint {
     pub stage: Stage,
     pub parameters: Vec<Parameter>,
     pub result: Parameter,
-    pub bindings: Vec<Binding>,
+    pub bindings: Vec<BindingWrapper>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct BindingsField {
     #[serde(default)]
-    pub binding: Option<Binding>,
+    pub binding: Option<BindingWrapper>,
     #[serde(default)]
-    pub bindings: Vec<Binding>,
+    pub bindings: Vec<BindingWrapper>,
 }
 
 impl BindingsField {
-    fn collect(self) -> Vec<Binding> {
-        let mut v = self.bindings;
+    pub fn collect(self) -> Vec<Binding> {
+        let mut v: Vec<Binding> = self
+            .bindings
+            .into_iter()
+            .map(|b| match b {
+                BindingWrapper::Plain(binding) => binding,
+                BindingWrapper::Named { name, binding } => binding,
+            })
+            .collect();
         if let Some(b) = self.binding {
-            v.push(b);
+            v.push(match b {
+                BindingWrapper::Plain(binding) => binding,
+                BindingWrapper::Named { name, binding } => binding,
+            });
         }
         v
     }
@@ -57,6 +67,13 @@ pub struct Parameter {
 pub enum Stage {
     Vertex,
     Fragment,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum BindingWrapper {
+    Plain(Binding),
+    Named { name: String, binding: Binding },
 }
 
 #[derive(Debug, Deserialize)]

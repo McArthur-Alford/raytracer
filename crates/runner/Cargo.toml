@@ -13,6 +13,7 @@ futures = { workspace = true, features = ["std"] }
 image = { workspace = true }
 phf.workspace = true
 shared = { workspace = true }
+slang.workspace = true
 strum = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
