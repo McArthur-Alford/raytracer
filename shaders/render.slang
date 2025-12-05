@@ -20,11 +20,12 @@ VertexOutput vertexMain(
   return outVal;
 }
 
+[[vk::binding(0,0)]] Texture2D<float4> tDiffuse;
+[[vk::binding(1,0)]] SamplerState sDiffuse;
+
 [shader("fragment")]
 float4 fragmentMain(
   VertexOutput input,
-  Texture2D<float4> tDiffuse,
-  SamplerState sDiffuse,
 ) : SV_Target0 {
   return tDiffuse.Sample(sDiffuse, input.texCoords);
 }

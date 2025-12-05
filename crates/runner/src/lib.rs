@@ -4,7 +4,6 @@ mod new_ray;
 mod path;
 mod queue;
 mod render;
-mod slang_reflect;
 mod texture;
 
 use std::sync::Arc;

@@ -72,12 +72,6 @@ impl RenderPhase {
         let render_shader =
             device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/render.spv")));
 
-        let program = slang::slang_program::SlangProgram::new(include_str!(concat!(
-            env!("OUT_DIR"),
-            "/render.json"
-        )))
-        .unwrap();
-
         // Create the index buffer
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
@@ -89,12 +83,11 @@ impl RenderPhase {
         // Creating the texture
         let diffuse_texture = texture::Texture::new(&device, texture_size).unwrap();
 
-        let mut plb = program.new_pipeline();
-        let program_output = plb
-            .entry(&"fragmentMain.tDiffuse", |bi| {
-                (
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
                     wgpu::BindGroupLayoutEntry {
-                        binding: bi as u32,
+                        binding: 0,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
@@ -103,112 +96,36 @@ impl RenderPhase {
                         },
                         count: None,
                     },
-                    wgpu::BindGroupEntry {
-                        binding: bi as u32,
-                        resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                    },
-                )
-            })
-            .unwrap()
-            .entry(&"fragmentMain.sDiffuse", |bi| {
-                (
                     wgpu::BindGroupLayoutEntry {
-                        binding: bi as u32,
+                        binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
-                    wgpu::BindGroupEntry {
-                        binding: bi as u32,
-                        resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                    },
-                )
-            })
-            .unwrap()
-            .group(|bg, data| {
-                let mut bgles = Vec::new();
-                let mut bges = Vec::new();
-                for (bi, (bgle, bge)) in data {
-                    bgles.push(bgle);
-                    bges.push(bge);
-                }
-                let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some(&format!("bgl: {}", bg)),
-                    entries: &bgles,
-                });
-                let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(&format!("bg: {}", bg)),
-                    layout: &bgl,
-                    entries: &bges,
-                });
-                (bgl, bg)
-            })
-            .build()
-            .unwrap();
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
 
-        drop(plb);
-
-        let mut bgls = Vec::new();
-        let mut bgs = Vec::new();
-        for (bgl, bg) in program_output {
-            bgls.push(bgl);
-            bgs.push(bg);
-        }
-
-        // panic!();
-
-        // let view_bi = *crate::slang_reflect::RENDER_REFLECTION
-        //     .get("fragmentMain.tDiffuse.bind_index")
-        //     .unwrap() as u32;
-        // let sample_bi = *crate::slang_reflect::RENDER_REFLECTION
-        //     .get("fragmentMain.sDiffuse.bind_index")
-        //     .unwrap() as u32;
-
-        // let texture_bind_group_layout =
-        //     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        //         entries: &[
-        //             wgpu::BindGroupLayoutEntry {
-        //                 binding: view_bi,
-        //                 visibility: wgpu::ShaderStages::FRAGMENT,
-        //                 ty: wgpu::BindingType::Texture {
-        //                     multisampled: false,
-        //                     view_dimension: wgpu::TextureViewDimension::D2,
-        //                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
-        //                 },
-        //                 count: None,
-        //             },
-        //             wgpu::BindGroupLayoutEntry {
-        //                 binding: sample_bi,
-        //                 visibility: wgpu::ShaderStages::FRAGMENT,
-        //                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-        //                 count: None,
-        //             },
-        //         ],
-        //         label: Some("texture_bind_group_layout"),
-        //     });
-
-        // let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        //     layout: &texture_bind_group_layout,
-        //     entries: &[
-        //         wgpu::BindGroupEntry {
-        //             binding: view_bi,
-        //             resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-        //         },
-        //         wgpu::BindGroupEntry {
-        //             binding: sample_bi,
-        //             resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-        //         },
-        //     ],
-        //     label: Some("diffuse_bind_group"),
-        // });
-
-        // dbg!(&diffuse_bind_group);
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+                },
+            ],
+            label: Some("diffuse_bind_group"),
+        });
 
         // Create the render pipeline here:
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: bgls.iter().collect::<Vec<_>>().as_slice(),
+                bind_group_layouts: &[&texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -262,7 +179,7 @@ impl RenderPhase {
             vertex_buffer,
             index_buffer,
             num_indices,
-            diffuse_bind_group: bgs.remove(0),
+            diffuse_bind_group,
             diffuse_texture,
             texture_size,
         }

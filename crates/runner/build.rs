@@ -30,26 +30,6 @@ fn build_slang(file: &str) {
         }
         panic!("Shader compilation failed.");
     }
-
-    // Turn reflected json into a .rs file with a const time hashmap from phf_codegen
-    let mut json = File::open(output_json).unwrap();
-    let mut text = String::new();
-    json.read_to_string(&mut text).unwrap();
-    let out = slang::generate_hashmap(&text).unwrap();
-    let mut out_file = BufWriter::new(File::create(&output_rs).unwrap());
-    let mut cg = phf_codegen::Map::new();
-    for (k, v) in out {
-        cg.entry(format!("{}.bind_group", k), v.bind_group.to_string());
-        cg.entry(format!("{}.bind_index", k), v.bind_index.to_string());
-        cg.entry(format!("{}.byte_offset", k), v.byte_offset.to_string());
-    }
-    write!(
-        &mut out_file,
-        "pub static {}_REFLECTION: phf::Map<&'static str, usize> = {};\n",
-        file.to_ascii_uppercase(),
-        cg.build()
-    )
-    .unwrap();
 }
 
 fn main() {
