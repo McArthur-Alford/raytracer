@@ -12,6 +12,7 @@ pub struct Sphere {
 
 pub struct ExtensionPhase {
     pipeline: wgpu::ComputePipeline,
+    reset_pipeline: wgpu::ComputePipeline,
     primitives_buffer: wgpu::Buffer,
     primitives_bindgroup_layout: wgpu::BindGroupLayout,
     primitives_bindgroup: wgpu::BindGroup,
@@ -72,13 +73,23 @@ impl ExtensionPhase {
             label: Some("ExtensionPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("main"),
+            entry_point: Some("extensionMain"),
+            compilation_options: Default::default(),
+            cache: Default::default(),
+        });
+
+        let reset_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("ExtensionPhase reset Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &compute_shader,
+            entry_point: Some("extensionReset"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });
 
         Self {
             pipeline,
+            reset_pipeline,
             primitives_buffer,
             primitives_bindgroup_layout,
             primitives_bindgroup,
@@ -101,6 +112,14 @@ impl ExtensionPhase {
         compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
         compute_pass.dispatch_workgroups(extension_queue.size.div_ceil(64), 1, 1);
+
+        // Reset extension queue after done:
+        compute_pass.set_pipeline(&self.reset_pipeline);
+        compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
+        compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
+        compute_pass.set_bind_group(2, &self.primitives_bindgroup, &[]);
+        compute_pass.dispatch_workgroups(1, 1, 1);
+
         drop(compute_pass);
 
         encoder.finish()

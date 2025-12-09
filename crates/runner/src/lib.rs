@@ -7,11 +7,11 @@ mod queue;
 mod render;
 mod texture;
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalPosition,
+    dpi::{LogicalPosition, PhysicalPosition},
     event::{KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
@@ -36,10 +36,18 @@ pub struct State {
     camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
+    keys_pressed: HashSet<KeyCode>,
 }
 
 impl State {
     pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
+        // Configure mouse grab:
+        window
+            .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+            .ok();
+        window.set_cursor_visible(false);
+
+        // Configure rendering stuff:
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
@@ -55,8 +63,6 @@ impl State {
                 force_fallback_adapter: false,
             })
             .await?;
-
-        let x = wgpu::WgslLanguageFeatures::UnrestrictedPointerParameters;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -126,6 +132,7 @@ impl State {
             extension_queue,
             camera,
             dims,
+            keys_pressed: HashSet::new(),
         })
     }
 
@@ -138,20 +145,64 @@ impl State {
         }
     }
 
-    fn handle_key(&self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
+    fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
         match (code, is_pressed) {
-            (KeyCode::Escape, true) => event_loop.exit(),
+            (KeyCode::Escape, true) => {
+                event_loop.exit();
+            }
             _ => {}
-        };
+        }
+
+        if is_pressed {
+            self.keys_pressed.insert(code);
+        } else {
+            self.keys_pressed.remove(&code);
+        }
     }
 
     fn handle_mouse(&mut self, event_loop: &ActiveEventLoop, position: PhysicalPosition<f64>) {}
 
-    fn update(&mut self) {}
+    fn handle_mouse_motion(&mut self, event_loop: &ActiveEventLoop, delta: (f32, f32)) {
+        self.camera.rotate(delta);
+    }
+
+    fn update(&mut self) {
+        const MOVE_SPEED: f32 = 0.01;
+        for key in &self.keys_pressed {
+            match key {
+                KeyCode::KeyW => {
+                    self.camera.translate((0.0, 0.0, MOVE_SPEED));
+                }
+                KeyCode::KeyA => {
+                    self.camera.translate((-MOVE_SPEED, 0.0, 0.0));
+                }
+                KeyCode::KeyS => {
+                    self.camera.translate((0.0, 0.0, -MOVE_SPEED));
+                }
+                KeyCode::KeyD => {
+                    self.camera.translate((MOVE_SPEED, 0.0, 0.0));
+                }
+                KeyCode::Space => {
+                    self.camera.translate((0.0, MOVE_SPEED, 0.0));
+                }
+                KeyCode::ControlLeft => {
+                    self.camera.translate((0.0, -MOVE_SPEED, 0.0));
+                }
+                _ => {}
+            };
+        }
+    }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         self.window.request_redraw();
 
+        // Game logic stuff
+        self.update();
+
+        // Updating any buffers
+        self.camera.update(&self.queue);
+
+        // Rendering:
         if !self.is_surface_configured {
             return Ok(());
         }
@@ -224,6 +275,29 @@ impl ApplicationHandler<State> for App {
         self.state = Some(event);
     }
 
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        let state = match &mut self.state {
+            Some(canvas) => canvas,
+            None => return,
+        };
+
+        match event {
+            winit::event::DeviceEvent::MouseMotion { delta: (x, y) } => {
+                const MOUSE_SENSITIVITY: f32 = 0.001;
+                state.handle_mouse_motion(
+                    event_loop,
+                    (x as f32 * MOUSE_SENSITIVITY, y as f32 * MOUSE_SENSITIVITY),
+                );
+            }
+            _ => {}
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -239,7 +313,7 @@ impl ApplicationHandler<State> for App {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
-                state.render();
+                state.render().ok();
             }
             WindowEvent::KeyboardInput {
                 event:

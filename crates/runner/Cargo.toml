@@ -10,6 +10,7 @@ bytemuck.workspace = true
 clap = { workspace = true, features = ["derive"] }
 env_logger = { workspace = true }
 futures = { workspace = true, features = ["std"] }
+glam.workspace = true
 image = { workspace = true }
 phf.workspace = true
 shared = { workspace = true }

@@ -28,9 +28,11 @@ impl CameraData {
 }
 
 pub struct Camera {
+    pub data: CameraData,
     pub uniform: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub bind_group_layout: wgpu::BindGroupLayout,
+    pub changed: bool,
 }
 
 impl Camera {
@@ -40,7 +42,7 @@ impl Camera {
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{} Camera Uniform", label)),
             contents: bytemuck::bytes_of(&CameraData::new()),
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -67,9 +69,56 @@ impl Camera {
         });
 
         Self {
+            data: CameraData::new(),
             uniform,
             bind_group,
             bind_group_layout,
+            changed: false,
         }
+    }
+
+    pub fn update(&mut self, queue: &wgpu::Queue) {
+        if self.changed {
+            queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&self.data));
+            queue.submit([]);
+        }
+    }
+
+    pub fn translate(&mut self, dir: impl Into<glam::Vec3>) {
+        let dir = dir.into();
+        let f = glam::Vec3::from(self.data.forward);
+        let u = glam::Vec3::from(self.data.up);
+        let r = u.cross(f).normalize();
+        let mut pos = glam::Vec3::from_slice(&self.data.position);
+
+        pos += dir.x * r;
+        pos += dir.y * u;
+        pos += dir.z * f;
+
+        self.data.position = pos.to_array();
+        self.changed = true;
+    }
+
+    pub fn rotate(&mut self, delta: impl Into<glam::Vec2>) {
+        let delta = delta.into();
+        let f = glam::Vec3::from(self.data.forward).normalize();
+        let u = glam::Vec3::from(self.data.up).normalize();
+
+        // Rotating about y axis for left/right is easy:
+        let m = glam::Mat3::from_rotation_y(delta.x);
+        let f = m * f;
+        let u = m * u;
+
+        // To rotate about r for up/down, we must rebase
+        // so that r is x axis.
+        let r = u.cross(f);
+        let m = glam::Mat3::from_axis_angle(r, delta.y);
+        let f = m * f;
+        let u = m * u;
+
+        self.data.forward = f.into();
+        self.data.up = u.into();
+
+        self.changed = true;
     }
 }

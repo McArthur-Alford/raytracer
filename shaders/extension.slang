@@ -40,8 +40,17 @@ void raySphereIntersect(Sphere sphere, Ray ray, out float t, out float3 p) {
 [[vk::binding(0,2)]] StructuredBuffer<Sphere> primitives;
 
 [shader("compute")]
+[numthreads(1,1,1)]
+void extensionReset(uint3 threadId : SV_DispatchThreadID) {
+  if (threadId.x == threadId.y == threadId.z == 0) {
+    queueReset(qh_extension);
+    return;
+  }
+}
+
+[shader("compute")]
 [numthreads(256,1,1)]
-void newRayMain(uint3 threadId : SV_DispatchThreadID) {
+void extensionMain(uint3 threadId : SV_DispatchThreadID) {
   uint index;
   if (queueRead(qh_extension, qd_extension, index) == -1) {
     return;
@@ -66,5 +75,8 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
 
   if (t < float.maxValue) {
     paths[index].rad = pow(float3(dot(normalize(p-float3(0.0,0.0,3.0)),float3(0.0,0.0,1.0))),2.0);
+  } else {
+    paths[index].rad = float3(0.0);
   }
+  paths[index].generated = 0;
 }

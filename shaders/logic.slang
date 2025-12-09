@@ -40,8 +40,8 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     // Path is terminated, add radiance to the buffer
     // output[threadId.x + threadId.y * 512] = pack_rgb(oldWrite);
   } else {
-    output[threadId.x + threadId.y * 512] = pack_rgb(path.rad.xyz);
   }
+  output[threadId.x + threadId.y * 512] = pack_rgb(path.rad.xyz);
 }
 
 uint pack_rgb(float3 color) {
