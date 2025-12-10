@@ -5,6 +5,7 @@ import path;
 import queue;
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
+[[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_material;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_material;
@@ -21,15 +22,13 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   }
 
   let path = &paths[index];
+  let hit = &hits[index];
   // path.rad += -dot(path.ray.dir, path.hit.norm) * float3(2.0) / (9-path.bounces);
   path.throughput *= float3(0.8,0.8,0.95);
 
-  path.ray.pos = path.hit.pos + path.hit.norm * 0.01;
+  path.ray.pos = hit.hit.pos + hit.hit.norm * 0.01;
 
-  float3 dir1 = path.hit.norm;
-  float3 dir2 = normalize(path.hit.norm + path.ray.dir * 1.1);
-  // path.ray.dir = (dir1 + dir2) * 0.5;
-  path.ray.dir = dir2;
+  path.ray.dir = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
   
   queuePush(qh_extension, qd_extension, index);
 }

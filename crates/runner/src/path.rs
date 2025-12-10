@@ -57,7 +57,9 @@ impl Paths {
         let paths: Vec<_> = (0..=(dims.0 * dims.1))
             .map(|_| {
                 let mut path = Path::zeroed();
-                path.random_state = rng.random();
+                for s in &mut path.random_state {
+                    *s = rng.random_range(1000..=u32::MAX);
+                }
                 path
             })
             .collect();

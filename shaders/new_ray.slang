@@ -5,6 +5,8 @@ import path;
 import queue;
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
+[[vk::binding(1,0)]] RWStructuredBuffer<uint4> random_states;
+[[vk::binding(2,0)]] RWStructuredBuffer<SampleState> sample_states;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_new_ray;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_new_ray;
@@ -14,6 +16,7 @@ import queue;
 
 [[vk::binding(0,3)]] ConstantBuffer<Camera> camera;
 
+// Based on this: https://math.stackexchange.com/a/340028
 struct RandomResult {
   uint4 state;
   float value;
@@ -58,20 +61,25 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
                   + camera.up * camera.dims.y
                   - right * camera.dims.x;
 
-  let offset = -2.0 * camera.up * camera.dims.y * path.screen_pos.y
-                + 2.0 * right * camera.dims.x * path.screen_pos.x;
-
   // Add random value in [0.0, 1.0 / screen dimensions] to the x,y
-  
+  RandomResult result = Random(random_states[index]);
+  RandomResult result2 = Random(result.state);
+  random_states[index]= result2.state;
+  let d = float2(result.value, result2.value) / 1024.0;
+  // let d = float2(0.0);
+
+  let offset = -2.0 * camera.up * camera.dims.y * (path.screen_pos.y + d.y)
+                + 2.0 * right * camera.dims.x * (path.screen_pos.x + d.x);
 
   float3 dir = top_left + offset;
   path.ray.dir = normalize(dir);
 
   // If we move too much, we reset the multi sampling :(
-  if (length(path.sampled_pos - (path.ray.pos + path.ray.dir)) > 0.02) {
-    path.sampled_pos = path.ray.pos + path.ray.dir;
-    path.samples = 0;
-    path.sampled_rad = float3(0.0);
+  let sample_state = &sample_states[index];
+  if (length(sample_state.sampled_pos - (path.ray.pos + path.ray.dir)) > 0.01) {
+    sample_state.sampled_pos = path.ray.pos + path.ray.dir;
+    sample_state.samples = 0;
+    sample_state.sampled_rad = float3(0.0);
   }
  
   queuePush(qh_extension, qd_extension, index);

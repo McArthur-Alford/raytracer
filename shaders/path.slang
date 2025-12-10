@@ -11,12 +11,18 @@ public struct Path {
   public uint terminated;
   public uint generated;
   public uint bounces;
-  // 0 is meaningless
-  // 1 is a lambertian
+  // For mat:
+  // - 0 is meaningless
+  // - 1 is a lambertian
+};
+
+public struct HitData {
   public uint mat;
   public Hit hit;
+}
+
+public struct SampleState {
   public float3 sampled_rad;
-  public uint samples;
   public float3 sampled_pos;
-  public float3 random_state;
-};
+  public uint samples;
+}

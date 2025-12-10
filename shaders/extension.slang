@@ -32,11 +32,16 @@ struct Sphere {
     }
     h.pos = ray.pos + t * ray.dir;
     h.norm = (h.pos - position) / radius;
+    // Norms from the inside are very broken... must investigate
+    // if (l2 < r2) {
+    //   h.norm *= -1;
+    // }
   }
 }
 
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
+[[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_extension;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_extension;
@@ -80,8 +85,8 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
 
   if (t < float.maxValue) {
     // paths[index].rad += float3(dot(h.norm,float3(0.0,0.0,-1.0))) / (5-path.bounces);
-    paths[index].mat = 1;
-    paths[index].hit = h;
+    hits[index].mat = 1;
+    hits[index].hit = h;
     paths[index].bounces -= 1;
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
   } else {

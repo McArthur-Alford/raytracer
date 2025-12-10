@@ -4,6 +4,8 @@ import path;
 import queue;
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
+[[vk::binding(2,0)]] RWStructuredBuffer<SampleState> sample_states;
+[[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_new_ray;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_new_ray;
@@ -26,18 +28,20 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(16,16,1)]
 void logicMain(uint3 threadId : SV_DispatchThreadID) {
-  if (threadId.x > 512 || threadId.y > 512) {
+  if (threadId.x > 1024 || threadId.y > 1024) {
     return;
   }
-  uint32_t idx = threadId.x + threadId.y * 512;
+  uint32_t idx = threadId.x + threadId.y * 1024;
 
   let path = &paths[idx];
+  let sample_state = &sample_states[idx];
+  let hit = &hits[idx];
 
   if (path.generated == 0) {
     // Path has never been generated
     // Set the pos:
-    path.screen_pos = float2(threadId.xy) / 512.0;
-    path.bounces = 8;
+    path.screen_pos = float2(threadId.xy) / 1024.0;
+    path.bounces = 128;
     path.terminated = 0;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
@@ -48,22 +52,22 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
   } else if (path.terminated == 1) {
     // Path is terminated, add radiance to the buffer
     // output[idx] = pack_rgb(path.rad.xyz);
-    path.samples += 1;
-    path.samples = min(path.samples,20);
-    path.sampled_rad = path.sampled_rad * (float(path.samples-1) / float(path.samples)) + path.rad  / float(path.samples);
-    output[idx] = pack_rgb(path.sampled_rad.xyz);
+    sample_state.samples += 1;
+    // path.samples = min(path.samples,20);
+    sample_state.sampled_rad = sample_state.sampled_rad * (float(sample_state.samples-1) / float(sample_state.samples)) + path.rad  / float(sample_state.samples);
+    output[idx] = pack_rgb(sample_state.sampled_rad.xyz);
     path.generated = 0;
   } else {
     // Path is not yet terminated this is where we would give it to the material it hit
     // but for now im just putting it straight back on the extension queue.
-    switch (path.mat) {
+    switch (hit.mat) {
       case 0:
         // No material??? Shouldn't get here.
-        output[threadId.x + threadId.y * 512] = pack_rgb(float3(0.0,0.0,255.0));
+        output[threadId.x + threadId.y * 1024] = pack_rgb(float3(0.0,0.0,255.0));
         break;
       case 1:
         // Lambertian
-        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 512);
+        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 1024);
         break;
       default:
         break;
