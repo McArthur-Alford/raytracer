@@ -1,6 +1,8 @@
 mod camera;
 mod extension;
+mod lambertian;
 mod logic;
+mod material;
 mod new_ray;
 mod path;
 mod queue;
@@ -28,10 +30,12 @@ pub struct State {
     is_surface_configured: bool,
     paths: path::Paths,
     new_ray_queue: queue::Queue,
+    lambertian_queue: queue::Queue,
     extension_queue: queue::Queue,
     logic_phase: logic::LogicPhase,
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
+    lambertian_phase: lambertian::LambertianPhase,
     extension_phase: extension::ExtensionPhase,
     camera: camera::Camera,
     window: Arc<Window>,
@@ -99,21 +103,43 @@ impl State {
         let paths = path::Paths::new(&device, dims);
         let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("ExtensionPhase"));
+        let lambertian_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("LambertianQueue"));
         let camera = camera::Camera::new(&device, Some("MainCamera"));
 
         let render_phase = render::RenderPhase::new(&device, &config, dims);
-        let logic_phase = logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[], dims);
+        let logic_phase =
+            logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[&lambertian_queue], dims);
         let new_ray_phase =
             new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue, &camera);
+        let lambertian_phase = lambertian::LambertianPhase::new(
+            &device,
+            &paths,
+            &lambertian_queue,
+            &extension_queue,
+            Some("Lambertian"),
+        );
+
         let extension_phase = extension::ExtensionPhase::new(
             &device,
             &paths,
             &extension_queue,
-            &[Sphere {
-                position: [0.0, 0.0, 3.0],
-                radius: 1.0,
-                ..Default::default()
-            }],
+            &[
+                Sphere {
+                    position: [0.0, 0.0, 3.0],
+                    radius: 1.0,
+                    ..Default::default()
+                },
+                Sphere {
+                    position: [5.0, 2.0, 3.0],
+                    radius: 3.0,
+                    ..Default::default()
+                },
+                Sphere {
+                    position: [5.0, -10000.0, 3.0],
+                    radius: 9999.0,
+                    ..Default::default()
+                },
+            ],
         );
 
         Ok(Self {
@@ -126,9 +152,11 @@ impl State {
             logic_phase,
             render_phase,
             new_ray_phase,
+            lambertian_phase,
             extension_phase,
             paths,
             new_ray_queue,
+            lambertian_queue,
             extension_queue,
             camera,
             dims,
@@ -217,7 +245,7 @@ impl State {
             &self.device,
             &self.paths,
             &self.new_ray_queue,
-            &[],
+            &[&self.lambertian_queue],
             self.dims,
         );
         let new_ray_commands = self.new_ray_phase.render(
@@ -226,6 +254,12 @@ impl State {
             &self.new_ray_queue,
             &self.extension_queue,
             &self.camera,
+        );
+        let lambertian_commands = self.lambertian_phase.render(
+            &self.device,
+            &self.paths,
+            &self.lambertian_queue,
+            &self.extension_queue,
         );
         let extension_commands =
             self.extension_phase
@@ -238,6 +272,7 @@ impl State {
         self.queue.submit([
             logic_commands,
             new_ray_commands,
+            lambertian_commands,
             extension_commands,
             renderer_commands,
         ]);

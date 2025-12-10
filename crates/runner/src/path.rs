@@ -1,5 +1,14 @@
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Zeroable)]
+pub struct Hit {
+    pub position: [f32; 3],
+    pub _pad0: u32, // pad vec3 to 16 bytes
+    pub normal: [f32; 3],
+    pub _pad1: u32, // pad vec3 to 16 bytes
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable)]
 pub struct Path {
     pub position: [f32; 3],
     pub _pad0: u32, // pad vec3 to 16 bytes
@@ -7,11 +16,15 @@ pub struct Path {
     pub _pad1: u32, // pad vec3 to 16 bytes
     pub radiance: [f32; 3],
     pub _pad2: u32, // pad to 16 byte boundary
+    pub throughput: [f32; 3],
+    pub _pad3: u32, // pad to 16 byte boundary
     pub screen_pos: [f32; 2],
-    pub _pad3: u64, // pad to 16 byte boundary
+    pub _pad4: u64, // pad to 16 byte boundary
     pub terminated: u32,
     pub generated: u32,
-    pub _pad4: u64, // Pad the entire struct to 16 byte boundary
+    pub bounces: u32,
+    pub mat: u32,
+    pub hit: Hit,
 }
 
 pub struct Paths {

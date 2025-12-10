@@ -40,6 +40,7 @@ fn main() {
     build_slang("logic");
     build_slang("new_ray");
     build_slang("extension");
+    build_slang("lambertian");
 
     // Old WESL stuff:
     wesl::Wesl::new("src/shaders")

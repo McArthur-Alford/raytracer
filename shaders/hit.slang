@@ -1,0 +1,6 @@
+module hit;
+
+public struct Hit {
+  public float3 pos;
+  public float3 norm;
+}

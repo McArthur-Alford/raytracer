@@ -10,11 +10,15 @@ import queue;
 
 [[vk::binding(0,2)]] RWStructuredBuffer<uint> output;
 
+[[vk::binding(0,3)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
+[[vk::binding(1,3)]] RWStructuredBuffer<uint> qd_lambertian;
+
 [shader("compute")]
 [numthreads(1,1,1)]
 void logicStart(uint3 threadId : SV_DispatchThreadID) {
   if (threadId.x == threadId.y == threadId.z == 0) {
     queueReset(qh_new_ray);
+    queueReset(qh_lambertian);
     return;
   }
 }
@@ -32,6 +36,10 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     // Path has never been generated
     // Set the pos:
     path.screen_pos = float2(threadId.xy) / 512.0;
+    path.bounces = 8;
+    path.terminated = 0;
+    path.throughput = float3(1.0);
+    path.rad = float3(0.0);
 
     // Push to the queue:
     queuePush(qh_new_ray, qd_new_ray, threadId.x + threadId.y * 512);
@@ -39,9 +47,24 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
   } else if (path.terminated == 1) {
     // Path is terminated, add radiance to the buffer
     // output[threadId.x + threadId.y * 512] = pack_rgb(oldWrite);
+    output[threadId.x + threadId.y * 512] = pack_rgb(path.rad.xyz);
+    path.generated = 0;
   } else {
+    // Path is not yet terminated this is where we would give it to the material it hit
+    // but for now im just putting it straight back on the extension queue.
+    switch (path.mat) {
+      case 0:
+        // No material??? Shouldn't get here.
+        output[threadId.x + threadId.y * 512] = pack_rgb(float3(0.0,0.0,255.0));
+        break;
+      case 1:
+        // Lambertian
+        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 512);
+        break;
+      default:
+        break;
+    }
   }
-  output[threadId.x + threadId.y * 512] = pack_rgb(path.rad.xyz);
 }
 
 uint pack_rgb(float3 color) {

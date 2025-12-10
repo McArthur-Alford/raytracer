@@ -16,7 +16,7 @@ impl LogicPhase {
         device: &wgpu::Device,
         path_buffer: &path::Paths,
         new_ray_queue: &queue::Queue,
-        material_queues: &[queue::Queue],
+        material_queues: &[&queue::Queue],
         dims: (u32, u32),
     ) -> Self {
         let compute_shader =
@@ -105,7 +105,7 @@ impl LogicPhase {
         device: &wgpu::Device,
         path_buffer: &path::Paths,
         new_ray_queue: &queue::Queue,
-        material_queues: &[queue::Queue],
+        material_queues: &[&queue::Queue],
         dims: (u32, u32),
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
