@@ -32,21 +32,37 @@ pub struct Path {
     pub terminated: u32,
     pub generated: u32,
     pub bounces: u32,
-    pub mat: u32,
-    pub hit: Hit,
-    pub sampled_radiance: [f32; 3], // multi sample radiance
-    pub _pad5: u32,                 // pad to 16 byte boundary
-    pub samples: u32,               // multi sample count
-    pub sampled_pos: [f32; 3],      // last sampled pos for reset check
-    pub _pad6: u32,                 // pad to 16 byte boundary
-    pub random_state: [u32; 4],
-    pub _pad7: [u32; 1],
+    pub _pad6: [u32; 3], // pad to 16 byte boundary
 }
 
-// unsafe impl bytemuck::Pod for Path {}
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct SamplingState {
+    pub sampled_radiance: [f32; 3], // multi sample radiance
+    pub _pad1: u32,                 // pad to 16 byte boundary
+    pub sampled_pos: [f32; 3],      // last sampled pos for reset check
+    pub _pad2: u32,                 // pad to 16 byte boundary
+    pub samples: u32,               // multi sample count
+    pub _pad3: [u32; 3],            // pad to 16 byte boundary
+}
+
+pub struct HitData {
+    pub hit: Hit,
+    pub mat: u32,
+    pub _pad3: [u32; 3], // pad to 16 byte boundary
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct RandomState {
+    pub random_state: [u32; 4],
+}
 
 pub struct Paths {
     pub path_buffer: wgpu::Buffer,
+    pub random_state_buffer: wgpu::Buffer,
+    pub sample_state_buffer: wgpu::Buffer,
+    pub hit_data_buffer: wgpu::Buffer,
     pub path_bind_group_layout: wgpu::BindGroupLayout,
     pub path_bind_group: wgpu::BindGroup,
 }
@@ -57,51 +73,127 @@ impl Paths {
         let paths: Vec<_> = (0..=(dims.0 * dims.1))
             .map(|_| {
                 let mut path = Path::zeroed();
-                for s in &mut path.random_state {
-                    *s = rng.random_range(1000..=u32::MAX);
-                }
                 path
             })
             .collect();
 
-        // let path_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        //     label: Some("Path Buffer"),
-        //     size: (dims.0 * dims.1 * std::mem::size_of::<Path>() as u32) as u64,
-        //     usage: wgpu::BufferUsages::STORAGE,
-        //     mapped_at_creation: false,
-        // });
+        // println!("samplingstate: {}", std::mem::size_of::<SamplingState>());
+        // println!("hitdata: {}", std::mem::size_of::<HitData>());
+        // println!("path: {}", std::mem::size_of::<Path>());
+        // panic!();
+
+        let random_states: Vec<_> = (0..=(dims.0 * dims.1))
+            .map(|_| RandomState {
+                random_state: [
+                    rng.random_range(1000..=u32::MAX),
+                    rng.random_range(1000..=u32::MAX),
+                    rng.random_range(1000..=u32::MAX),
+                    rng.random_range(1000..=u32::MAX),
+                ],
+            })
+            .collect();
+
         let path_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Path Buffer"),
             usage: wgpu::BufferUsages::STORAGE,
             contents: bytemuck::cast_slice(&paths),
         });
 
+        let random_state_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("random_state Buffer"),
+            usage: wgpu::BufferUsages::STORAGE,
+            contents: bytemuck::cast_slice(&random_states),
+        });
+
+        let sample_state_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("sample_state Buffer"),
+            size: ((dims.0 * dims.1) as u64 * std::mem::size_of::<SamplingState>() as u64),
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
+        let hit_data_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("hit_data Buffer"),
+            size: ((dims.0 * dims.1) as u64 * std::mem::size_of::<HitData>() as u64),
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
+
         let path_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Path Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
             });
 
         let path_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Path Bind Group"),
             layout: &path_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: path_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: path_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: random_state_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: sample_state_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: hit_data_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         Self {
             path_buffer,
+            random_state_buffer,
+            sample_state_buffer,
+            hit_data_buffer,
             path_bind_group_layout,
             path_bind_group,
         }

@@ -39,7 +39,6 @@ struct Sphere {
   }
 }
 
-
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
 [[vk::binding(3,0)]] RWStructuredBuffer<HitData> hits;
 

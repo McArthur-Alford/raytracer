@@ -11,6 +11,7 @@ mod texture;
 
 use std::{collections::HashSet, sync::Arc};
 
+use rand::Rng;
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalPosition, PhysicalPosition},
@@ -68,12 +69,14 @@ impl State {
             })
             .await?;
 
+        let mut limits = wgpu::Limits::defaults();
+        // limits.max_storage_buffer_binding_size = 184549552;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::empty(),
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                required_limits: wgpu::Limits::defaults(),
+                required_limits: limits,
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
             })
@@ -98,7 +101,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = (512, 512);
+        let dims = (1024, 1024);
 
         let paths = path::Paths::new(&device, dims);
         let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
@@ -119,27 +122,50 @@ impl State {
             Some("Lambertian"),
         );
 
+        let mut rng = rand::rng();
+        let mut spheres = (0..100)
+            .map(|_| Sphere {
+                position: [
+                    rng.random_range(-100.0..=100.0),
+                    rng.random_range(1.0..=100.0),
+                    rng.random_range(0.0..=400.0),
+                ],
+                radius: rng.random_range(1.0..=10.0),
+            })
+            .collect::<Vec<_>>();
+        spheres.push(Sphere {
+            position: [5.0, -10000.0, 3.0],
+            radius: 9999.0,
+            ..Default::default()
+        });
+
         let extension_phase = extension::ExtensionPhase::new(
             &device,
             &paths,
             &extension_queue,
-            &[
-                Sphere {
-                    position: [0.0, 0.0, 3.0],
-                    radius: 1.0,
-                    ..Default::default()
-                },
-                Sphere {
-                    position: [5.0, 2.0, 3.0],
-                    radius: 3.0,
-                    ..Default::default()
-                },
-                Sphere {
-                    position: [5.0, -10000.0, 3.0],
-                    radius: 9999.0,
-                    ..Default::default()
-                },
-            ],
+            spheres.as_slice(),
+            // &[
+            //     Sphere {
+            //         position: [0.0, 0.0, 3.0],
+            //         radius: 1.0,
+            //         ..Default::default()
+            //     },
+            //     Sphere {
+            //         position: [5.0, 2.0, 3.0],
+            //         radius: 3.0,
+            //         ..Default::default()
+            //     },
+            //     Sphere {
+            //         position: [-2.0, 2.0, 6.0],
+            //         radius: 2.0,
+            //         ..Default::default()
+            //     },
+            //     Sphere {
+            //         position: [0.0, 1.0, 8.0],
+            //         radius: 0.4,
+            //         ..Default::default()
+            //     },
+            // ],
         );
 
         Ok(Self {
