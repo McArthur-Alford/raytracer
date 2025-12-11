@@ -24,9 +24,13 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   let path = &paths[index];
   let hit = &hits[index];
   // path.rad += -dot(path.ray.dir, path.hit.norm) * float3(2.0) / (9-path.bounces);
-  path.throughput *= float3(0.8,0.8,0.95);
+  if (hit.mat == 1) {
+    path.throughput *= float3(0.8,0.8,0.95);
+  } else if (hit.mat == 2) {
+    path.throughput *= float3(0.95,0.8,0.8);
+  }
 
-  path.ray.pos = hit.hit.pos + hit.hit.norm * 0.01;
+  path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
 
   path.ray.dir = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
   

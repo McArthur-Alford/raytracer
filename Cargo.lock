@@ -2572,11 +2572,13 @@ dependencies = [
  "futures",
  "glam",
  "image",
+ "itertools",
  "phf",
  "phf_codegen",
  "rand",
  "shared",
  "strum",
+ "tobj",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2995,6 +2997,15 @@ dependencies = [
  "arrayref",
  "bytemuck",
  "strict-num",
+]
+
+[[package]]
+name = "tobj"
+version = "4.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04aca6092e5978e708ee784e8ab9b5cf3cdb598b28f99a2f257446e7081a7025"
+dependencies = [
+ "ahash",
 ]
 
 [[package]]

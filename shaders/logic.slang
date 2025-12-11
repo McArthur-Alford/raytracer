@@ -41,7 +41,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     // Path has never been generated
     // Set the pos:
     path.screen_pos = float2(threadId.xy) / 1024.0;
-    path.bounces = 128;
+    path.bounces = 8;
     path.terminated = 0;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
@@ -68,6 +68,12 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
       case 1:
         // Lambertian
         queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 1024);
+        break;
+      case 2:
+        // Lambertian
+        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 1024);
+        // path.rad = float3(1.0,0.0,0.0);
+        // path.terminated = 1;
         break;
       default:
         break;

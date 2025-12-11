@@ -1,8 +1,10 @@
+mod bvh;
 mod camera;
 mod extension;
 mod lambertian;
 mod logic;
 mod material;
+mod mesh;
 mod new_ray;
 mod path;
 mod queue;
@@ -21,7 +23,7 @@ use winit::{
     window::Window,
 };
 
-use crate::extension::Sphere;
+use crate::{bvh::BLAS, extension::Sphere, mesh::Meshes};
 
 pub struct State {
     surface: wgpu::Surface<'static>,
@@ -38,6 +40,7 @@ pub struct State {
     new_ray_phase: new_ray::NewRayPhase,
     lambertian_phase: lambertian::LambertianPhase,
     extension_phase: extension::ExtensionPhase,
+    blas: BLAS,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
@@ -103,6 +106,15 @@ impl State {
 
         let dims = (1024, 1024);
 
+        // Load models:
+        let mut load_options = tobj::GPU_LOAD_OPTIONS;
+        load_options.single_index = false;
+        let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
+        let mesh = mesh::Mesh::from_model(&models[0].mesh);
+        let bvhs = vec![bvh::BVH::new(mesh)];
+        let blas = bvh::BLAS::new(&device, bvhs);
+
+        // Make a bunch of queues:
         let paths = path::Paths::new(&device, dims);
         let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("ExtensionPhase"));
@@ -123,14 +135,14 @@ impl State {
         );
 
         let mut rng = rand::rng();
-        let mut spheres = (0..100)
+        let mut spheres = (0..0)
             .map(|_| Sphere {
                 position: [
-                    rng.random_range(-100.0..=100.0),
-                    rng.random_range(1.0..=100.0),
-                    rng.random_range(0.0..=400.0),
+                    rng.random_range(-10.0..=10.0),
+                    rng.random_range(0.0..=5.0),
+                    rng.random_range(0.0..=10.0),
                 ],
-                radius: rng.random_range(1.0..=10.0),
+                radius: rng.random_range(0.001..=1.0),
             })
             .collect::<Vec<_>>();
         spheres.push(Sphere {
@@ -143,29 +155,8 @@ impl State {
             &device,
             &paths,
             &extension_queue,
+            &blas,
             spheres.as_slice(),
-            // &[
-            //     Sphere {
-            //         position: [0.0, 0.0, 3.0],
-            //         radius: 1.0,
-            //         ..Default::default()
-            //     },
-            //     Sphere {
-            //         position: [5.0, 2.0, 3.0],
-            //         radius: 3.0,
-            //         ..Default::default()
-            //     },
-            //     Sphere {
-            //         position: [-2.0, 2.0, 6.0],
-            //         radius: 2.0,
-            //         ..Default::default()
-            //     },
-            //     Sphere {
-            //         position: [0.0, 1.0, 8.0],
-            //         radius: 0.4,
-            //         ..Default::default()
-            //     },
-            // ],
         );
 
         Ok(Self {
@@ -187,6 +178,7 @@ impl State {
             camera,
             dims,
             keys_pressed: HashSet::new(),
+            blas,
         })
     }
 
@@ -287,9 +279,12 @@ impl State {
             &self.lambertian_queue,
             &self.extension_queue,
         );
-        let extension_commands =
-            self.extension_phase
-                .render(&self.device, &self.paths, &self.extension_queue);
+        let extension_commands = self.extension_phase.render(
+            &self.device,
+            &self.paths,
+            &self.extension_queue,
+            &self.blas,
+        );
 
         let renderer_commands =
             self.render_phase
