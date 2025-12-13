@@ -135,7 +135,7 @@ impl State {
         );
 
         let mut rng = rand::rng();
-        let mut spheres = (0..0)
+        let mut spheres = (0..4)
             .map(|_| Sphere {
                 position: [
                     rng.random_range(-10.0..=10.0),

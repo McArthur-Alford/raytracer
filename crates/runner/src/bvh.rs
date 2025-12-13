@@ -172,6 +172,38 @@ impl BVH {
         self.compute_bounds(node_idx);
     }
 
+    /// Converts all right children into skip connections
+    /// for a stackless traversal.
+    /// Must be done after the BVH is fully constructed,
+    /// and donly done once.
+    pub fn rights_to_skips(&mut self, parent_idx: usize, node_idx: usize) {
+        let BVHNode::Internal {
+            bounds,
+            left,
+            right,
+        } = self.nodes[node_idx]
+        else {
+            return;
+        };
+
+        let BVHNode::Internal { right: p_right, .. } = self.nodes[parent_idx] else {
+            return;
+        };
+
+        // Left child
+        self.rights_to_skips(node_idx, left);
+
+        // Self:
+        self.nodes[node_idx] = BVHNode::Internal {
+            bounds,
+            left,
+            right: if node_idx == 0 { 0 } else { p_right },
+        };
+
+        // Right child:
+        self.rights_to_skips(node_idx, right);
+    }
+
     pub fn new(mesh: Mesh) -> BVH {
         let mut bvh = BVH {
             nodes: vec![BVHNode::Leaf {
@@ -200,6 +232,7 @@ impl BVH {
 
         // Subdivide until all BVHs have at most 4 elements
         bvh.subdivide(0, 32);
+        bvh.rights_to_skips(0, 0);
 
         bvh
     }
@@ -267,6 +300,9 @@ impl BLAS {
         let mut tri_faces = Vec::new();
         let mut face_offset = 0;
         let mut vertex_offset = 0;
+        let mut node_offset = 0;
+
+        dbg!(&bvhs[0].nodes);
 
         for mut bvh in bvhs {
             // TODO: Can be optimised using a hashmap/btreemap to re-id
@@ -280,6 +316,7 @@ impl BLAS {
             }
             let tpl = bvh.tri_positions.len();
             let tfl = bvh.tri_faces.len();
+            let nl = bvh.nodes.len();
 
             nodes.append(
                 &mut bvh
@@ -287,10 +324,10 @@ impl BLAS {
                     .into_iter()
                     .map(|n| BVHNodeGPU::from(n))
                     .map(|mut n| {
-                        if n.is_leaf == 1 {
-                            n.start += face_offset;
-                            n.end += face_offset;
-                        }
+                        n.start += face_offset;
+                        n.end += face_offset;
+                        n.left += node_offset;
+                        n.right += node_offset;
                         n
                     })
                     .collect_vec(),
@@ -320,6 +357,7 @@ impl BLAS {
 
             vertex_offset += tpl as u32;
             face_offset += tfl as u32;
+            node_offset += nl as u32;
         }
 
         // Make the node buffer:

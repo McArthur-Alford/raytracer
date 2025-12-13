@@ -88,15 +88,85 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   return;
 }
 
+void rayBoxIntersect(Ray ray, float3 lb, float3 ub, out float t) {
+  t = -1.0;
+  var t_min = float.minValue;
+  var t_max = float.maxValue;
+  let a_c = (lb + ub) / 2.0;
+  let p = a_c - ray.pos;
+  let uvw = normalize(ub - lb);
+  let h = (ub - lb) / 2;
+  for (int i = 0; i < 3; i++) {
+    let e = dot(uvw[i], p);
+    let f = dot(uvw[i], ray.dir);
+    if (abs(f) > 10e-20) {
+      var t1 = (e+h[i])/f;
+      var t2 = (e-h[i])/f;
+      if (t1 > t2) {
+        let temp = t2;
+        t2 = t1;
+        t1 = temp;
+      }
+      if (t1 > t_min) {
+        t_min = t1;
+      }
+      if (t2 < t_max) {
+        t_max = t2;
+      }
+      if (t_min > t_max) {
+        return;
+      }
+      if (t_max < 0) {
+        return;
+      }
+    } else if (- e - h[i] > 0 || -e + h[i] < 0) {
+      return;
+    }
+  }
+  if (t_min > 0) {
+    t = t_min;
+  }
+  else {
+    t = t_max;
+  }
+  return;
+}
+
 void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit h) {
-  // It appears i need a ROPED bvh traversal
-  // Definitely not getting this done tonight then.
-  // Idea:
-  // Each node points to the next node in a full dfs traversal
-  // after all of its children are already done.
-  // AKA each node has the index of its right sibling,
-  // if that right sibling doesnt exist, keep going up until something has one
-  // 0 is nullptr, NOT root node :)
+  let root = bvh_node;
+  var current = bvh_node;
+  t = float.maxValue;
+  h = Hit();
+  uv = float2(0.0);
+  do {
+    let node = bvh_nodes[current];
+    if (node.is_leaf == 0) {
+      // Internal node.
+      var tp = -1.0;
+      rayBoxIntersect(ray, node.lb, node.ub, tp);
+      if (tp < 0.0) {
+        // Failed to hit, skip to right
+        current = node.right;
+      } else {
+        current = node.left;
+      }
+    } else {
+      // Leaf node. Iterate primitives and check:
+      for (int p = node.start; p < node.end; p++) {
+        let face = tri_faces[p];
+        float t2;
+        Hit h2;
+        float2 uv2;
+        rayTriIntersect(face, ray, uv2, t2, h2);
+        if (t2 >= 0 && t2 < t) {
+          t = t2;
+          h = h2;
+          uv = uv2;
+        }
+      }
+      current = node.right;
+    }
+  } while (root != current);
 }
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -145,11 +215,13 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
       h = h2;
     }
   }
-  for (uint pid = 0; pid < tri_faces.getCount(); pid++) {
+
+  for (uint bid = 0; bid < 1; bid++) {
     float t2;
     Hit h2;
     float2 uv;
-    rayTriIntersect(tri_faces[pid], path.ray, uv, t2, h2);
+    // rayTriIntersect(tri_faces[bid], path.ray, uv, t2, h2);
+    rayBVHIntersect(path.ray, bid, uv, t2, h2);
 
     if (t2 >= 0 && t2 <= t) {
       hits[index].mat = 2;
