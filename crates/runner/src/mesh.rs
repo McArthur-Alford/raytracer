@@ -54,7 +54,7 @@ impl Mesh {
             .map(|p| [p[0] / extent, p[1] / extent, p[2] / extent, 1.0])
             .collect_vec();
 
-        let mut normals = model
+        let normals = model
             .normals
             .chunks_exact(3)
             .map(|chunk| [chunk[0], chunk[1], chunk[2], 0.0])

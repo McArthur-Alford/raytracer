@@ -120,10 +120,10 @@ bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
   return tmin < tmax;
 }
 
-void rayBVHIntersect(Ray ray, uint bvh_node, out float2 uv, out float t, out Hit h) {
+void rayBVHIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out float t, out Hit h) {
   let root = bvh_node;
   var current = bvh_node;
-  t = float.maxValue;
+  t = tmax;
   h = Hit(float3(0.0), float3(0.0));
   uv = float2(0.0);
   float t2;
@@ -268,7 +268,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     path.ray.pos = (mul(mi, float4(path.ray.pos,1.0))).xyz;
     path.ray.dir = (mul(mi, float4(path.ray.dir,0.0))).xyz;
 
-    rayBVHIntersect(path.ray, bid, uv, t2, h2);
+    rayBVHIntersect(path.ray, bid, t, uv, t2, h2);
 
     path.ray.pos =           (mul(m, float4(path.ray.pos, 1.0))).xyz;
     path.ray.dir =           (mul(m, float4(path.ray.dir, 0.0))).xyz;
