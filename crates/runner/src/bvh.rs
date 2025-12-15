@@ -5,9 +5,9 @@ use wgpu::util::DeviceExt;
 use crate::mesh::{Mesh, Meshes};
 
 #[derive(Default, Clone, Copy, Debug)]
-struct AABB {
-    lb: Vec3,
-    ub: Vec3,
+pub struct AABB {
+    pub lb: Vec3,
+    pub ub: Vec3,
 }
 
 impl AABB {

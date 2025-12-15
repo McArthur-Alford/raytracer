@@ -12,6 +12,7 @@ mod path;
 mod queue;
 mod render;
 mod texture;
+mod tlas;
 
 use core::f32;
 use std::{collections::HashSet, f32::consts::PI, sync::Arc};

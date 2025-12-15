@@ -64,10 +64,21 @@
             libX11
           ])
         );
+
+        unfilteredRoot = ./.;
+        lib = pkgs.lib;
+        src = lib.fileset.toSource {
+          root = unfilteredRoot;
+          fileset = lib.fileset.unions [
+            (craneLib.fileset.commonCargoSources unfilteredRoot)
+            (lib.fileset.fileFilter (file: file.hasExt "slang") unfilteredRoot)
+            (lib.fileset.maybeMissing ./shaders)
+          ];
+        };
       in
       {
         packages.default = craneLib.buildPackage {
-          src = craneLib.cleanCargoSource ./.;
+          inherit src;
         };
 
         devShells.default = craneLib.devShell {
