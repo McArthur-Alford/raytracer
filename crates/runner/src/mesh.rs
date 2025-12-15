@@ -34,12 +34,24 @@ impl Mesh {
             .into_iter()
             .map(|p| {
                 [
-                    p[0] - center[0],
-                    p[1] - center[1],
-                    p[2] - center[2],
-                    p[3] - center[3],
+                    (p[0] - center[0]),
+                    (p[1] - center[1]),
+                    (p[2] - center[2]),
+                    (p[3] - center[3]),
                 ]
             })
+            .collect_vec();
+
+        // Calculate the greatest distance from center
+        // so we can scale down such that furthest point is on the unit cube
+        let mut extent: f32 = 0.0;
+        for pos in &positions {
+            extent = extent.max((pos[0].powi(2) + pos[1].powi(2) + pos[2].powi(2)).sqrt());
+        }
+
+        let positions = positions
+            .into_iter()
+            .map(|p| [p[0] / extent, p[1] / extent, p[2] / extent, 1.0])
             .collect_vec();
 
         let mut normals = model

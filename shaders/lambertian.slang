@@ -43,9 +43,6 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   float3 scatter = hit.hit.norm + normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
   scatter = select(length(scatter) < 1e-2, hit.hit.norm, scatter);
 
-  // Perfect reflection from testing, add a reflective material later to reintroduce this
-  // path.ray.dir = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
-
   // Actual lambertian scattering:
   path.ray.dir = normalize(path.ray.dir + scatter);
   

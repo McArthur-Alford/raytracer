@@ -79,7 +79,7 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   let e2 = p2 - p0;
   let q = cross(ray.dir, e2);
   let alpha = dot(e1, q);
-  if (alpha > -(10e-5) && alpha < 10e-5) {
+  if (alpha > -(10e-8) && alpha < 10e-8) {
     return;
   }
   let f = 1.0 / alpha;
@@ -95,8 +95,8 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   }
   t = f * dot(e2, r);
 
-  // h.norm = normalize(cross(e1, e2));
-  h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+  h.norm = normalize(cross(e1, e2));
+  // h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
   h.pos = ray.pos + t * ray.dir;
   return;
 }

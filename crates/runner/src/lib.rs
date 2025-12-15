@@ -125,16 +125,22 @@ impl State {
         let mut load_options = tobj::GPU_LOAD_OPTIONS;
         load_options.single_index = false;
 
-        // Teapot!
-        // let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
-        // let mesh = mesh::Mesh::from_model(&models[0].mesh);
+        let mut meshes = Vec::new();
 
         // Suzanne!
         let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
-        let mesh2 = mesh::Mesh::from_model(&models[0].mesh);
+        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
+
+        // Teapot!
+        let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
+        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
+
+        // Teapot!
+        let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
+        meshes.push(mesh::Mesh::from_model(&models[0].mesh));
 
         // Make the BLAS:
-        let bvhs = vec![bvh::BVH::new(mesh2)];
+        let bvhs = meshes.into_iter().map(|m| bvh::BVH::new(m)).collect_vec();
         let blas = bvh::BLAS::new(&device, bvhs);
 
         // Make material data for lambertian:
@@ -181,7 +187,7 @@ impl State {
                         2 => random_range(0..metallic_data.len() as u32),
                         _ => panic!(),
                     };
-                    let scale = random_range(0.9..=1.1);
+                    let scale = random_range(1.0..=2.0);
                     instances.push(Instance {
                         transform: instance::Transform {
                             scale: [scale, scale, scale],
@@ -194,7 +200,7 @@ impl State {
                             ],
                             ..Default::default()
                         },
-                        mesh: 0,
+                        mesh: random_range(0..blas.roots.len() as u32),
                         material: material, // Lambertian
                         material_idx: material_idx,
                         ..Default::default()
