@@ -9,11 +9,37 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn from_model(model: &tobj::Mesh) -> Self {
-        // let mut positions = Vec::new();
         let positions = model
             .positions
             .chunks_exact(3)
             .map(|chunk| [chunk[0], chunk[1], chunk[2], 0.0])
+            .collect_vec();
+
+        let len = positions.len();
+        let center = positions
+            .iter()
+            .copied()
+            .reduce(|acc, pos| {
+                [
+                    acc[0] + pos[0],
+                    acc[1] + pos[1],
+                    acc[2] + pos[2],
+                    acc[3] + pos[3],
+                ]
+            })
+            .unwrap()
+            .map(|i| i / len as f32);
+
+        let positions = positions
+            .into_iter()
+            .map(|p| {
+                [
+                    p[0] - center[0],
+                    p[1] - center[1],
+                    p[2] - center[2],
+                    p[3] - center[3],
+                ]
+            })
             .collect_vec();
 
         let mut normals = model

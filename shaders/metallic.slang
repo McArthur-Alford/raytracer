@@ -1,12 +1,13 @@
-module lambertian;
+module metallic;
 
 import camera;
 import path;
 import queue;
 import random;
 
-public struct LambertianData {
+public struct MetallicData {
   float4 albedo;
+  float fuzz;
 };
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -19,7 +20,7 @@ public struct LambertianData {
 [[vk::binding(0,2)]] RWStructuredBuffer<QueueHeader> qh_extension;
 [[vk::binding(1,2)]] RWStructuredBuffer<uint> qd_extension;
 
-[[vk::binding(0,3)]] StructuredBuffer<LambertianData> lb_data;
+[[vk::binding(0,3)]] StructuredBuffer<MetallicData> lb_data;
 
 [shader("compute")]
 [numthreads(256,1,1)]
@@ -36,18 +37,16 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
   path.throughput *= mat_data.albedo.xyz;
 
+  let reflected = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
+
   RandomResult result = Random(random_states[index]);
   RandomResult result2 = Random(result.state);
   RandomResult result3 = Random(result2.state);
   random_states[index] = result2.state;
-  float3 scatter = hit.hit.norm + normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
-  scatter = select(length(scatter) < 1e-2, hit.hit.norm, scatter);
+  let random_unit_sphere = normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
+  float3 scatter = reflected + random_unit_sphere * mat_data.fuzz;
 
-  // Perfect reflection from testing, add a reflective material later to reintroduce this
-  // path.ray.dir = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
-
-  // Actual lambertian scattering:
-  path.ray.dir = normalize(path.ray.dir + scatter);
+  path.ray.dir = normalize(select(length(scatter) < 1e-2, reflected, scatter));
   
   queuePush(qh_extension, qd_extension, index);
 }

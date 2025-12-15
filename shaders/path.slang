@@ -17,6 +17,7 @@ public struct HitData {
   // For mat:
   // - 0 is meaningless
   // - 1 is a lambertian
+  // - 2 is a metallic
   public Hit hit;
   public uint mat;
   public uint mat_data;

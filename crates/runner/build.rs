@@ -42,6 +42,7 @@ fn main() {
     build_slang("new_ray");
     build_slang("extension");
     build_slang("lambertian");
+    build_slang("metallic");
 
     // Old WESL stuff:
     wesl::Wesl::new("src/shaders")

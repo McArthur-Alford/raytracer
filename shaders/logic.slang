@@ -15,12 +15,16 @@ import queue;
 [[vk::binding(0,3)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
 [[vk::binding(1,3)]] RWStructuredBuffer<uint> qd_lambertian;
 
+[[vk::binding(0,4)]] RWStructuredBuffer<QueueHeader> qh_metallic;
+[[vk::binding(1,4)]] RWStructuredBuffer<uint> qd_metallic;
+
 [shader("compute")]
 [numthreads(1,1,1)]
 void logicStart(uint3 threadId : SV_DispatchThreadID) {
   if (threadId.x == threadId.y == threadId.z == 0) {
     queueReset(qh_new_ray);
     queueReset(qh_lambertian);
+    queueReset(qh_metallic);
     return;
   }
 }
@@ -41,7 +45,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     // Path has never been generated
     // Set the pos:
     path.screen_pos = float2(threadId.xy) / 1024.0;
-    path.bounces = 32;
+    path.bounces = 8;
     path.terminated = 0;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
@@ -71,9 +75,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
         break;
       case 2:
         // Lambertian
-        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 1024);
-        // path.rad = float3(1.0,0.0,0.0);
-        // path.terminated = 1;
+        queuePush(qh_metallic, qd_metallic, threadId.x + threadId.y * 1024);
         break;
       default:
         break;

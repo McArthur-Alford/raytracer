@@ -6,6 +6,7 @@ mod lambertian;
 mod logic;
 mod material;
 mod mesh;
+mod metallic;
 mod new_ray;
 mod path;
 mod queue;
@@ -15,6 +16,7 @@ mod texture;
 use core::f32;
 use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 
+use itertools::Itertools;
 use rand::{Rng, random_range};
 use winit::{
     application::ApplicationHandler,
@@ -31,6 +33,7 @@ use crate::{
     instance::{Instance, Instances},
     lambertian::LambertianData,
     mesh::Meshes,
+    metallic::MetallicData,
 };
 
 pub struct State {
@@ -42,11 +45,13 @@ pub struct State {
     paths: path::Paths,
     new_ray_queue: queue::Queue,
     lambertian_queue: queue::Queue,
+    metallic_queue: queue::Queue,
     extension_queue: queue::Queue,
     logic_phase: logic::LogicPhase,
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
     lambertian_phase: lambertian::LambertianPhase,
+    metallic_phase: metallic::MetallicPhase,
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas: BLAS,
@@ -133,7 +138,7 @@ impl State {
         let blas = bvh::BLAS::new(&device, bvhs);
 
         // Make material data for lambertian:
-        let lambertian_data = vec![
+        let mut lambertian_data = vec![
             // For now, 3 instances, r/g/b each
             LambertianData {
                 albedo: [0.9, 0.9, 0.9, 0.0],
@@ -148,22 +153,46 @@ impl State {
                 albedo: [0.9, 0.8, 0.8, 0.0],
             },
         ];
+        for _ in 0..10 {
+            lambertian_data.push(LambertianData {
+                albedo: [0.0, 0.0, 0.0, 0.0].map(|_| random_range(0.0..=1.0)),
+            });
+        }
+
+        // Make material data for metallics:
+        let metallic_data = lambertian_data
+            .clone()
+            .into_iter()
+            .map(|ld| MetallicData {
+                albedo: ld.albedo,
+                fuzz: random_range(0.0..=1.0),
+                ..Default::default()
+            })
+            .collect_vec();
 
         // Instances:
         let mut instances = vec![];
         for x in 0..10 {
-            for y in 0..10 {
-                for z in 0..1 {
+            for y in 0..1 {
+                for z in 0..10 {
+                    let material = random_range(1..=2);
+                    let material_idx = match material {
+                        1 => random_range(0..lambertian_data.len() as u32),
+                        2 => random_range(0..metallic_data.len() as u32),
+                        _ => panic!(),
+                    };
+                    let scale = random_range(0.9..=1.1);
                     instances.push(Instance {
                         transform: instance::Transform {
-                            scale: [1.0, 1.0, 1.0],
-                            rotation: [0.0, f32::consts::PI / 2.0, 0.0],
+                            scale: [scale, scale, scale],
+                            rotation: [0.0, 0.0, 0.0]
+                                .map(|_| random_range(0.0..2.0 * f32::consts::PI)),
                             translation: [x as f32 * 3.0, y as f32 * 3.0, z as f32 * 3.0],
                             ..Default::default()
                         },
                         mesh: 0,
-                        material: 1, // Lambertian
-                        material_idx: random_range(1..4),
+                        material: material, // Lambertian
+                        material_idx: material_idx,
                         ..Default::default()
                     });
                 }
@@ -176,11 +205,17 @@ impl State {
         let new_ray_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("ExtensionPhase"));
         let lambertian_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("LambertianQueue"));
+        let metallic_queue = queue::Queue::new(&device, dims.0 * dims.1, Some("MetallicQueue"));
         let camera = camera::Camera::new(&device, Some("MainCamera"));
 
         let render_phase = render::RenderPhase::new(&device, &config, dims);
-        let logic_phase =
-            logic::LogicPhase::new(&device, &paths, &new_ray_queue, &[&lambertian_queue], dims);
+        let logic_phase = logic::LogicPhase::new(
+            &device,
+            &paths,
+            &new_ray_queue,
+            &[&lambertian_queue, &metallic_queue],
+            dims,
+        );
         let new_ray_phase =
             new_ray::NewRayPhase::new(&device, &paths, &new_ray_queue, &extension_queue, &camera);
         let lambertian_phase = lambertian::LambertianPhase::new(
@@ -190,6 +225,14 @@ impl State {
             &extension_queue,
             lambertian_data,
             Some("Lambertian"),
+        );
+        let metallic_phase = metallic::MetallicPhase::new(
+            &device,
+            &paths,
+            &metallic_queue,
+            &extension_queue,
+            metallic_data,
+            Some("Metallic"),
         );
 
         let mut rng = rand::rng();
@@ -230,10 +273,12 @@ impl State {
             render_phase,
             new_ray_phase,
             lambertian_phase,
+            metallic_phase,
             extension_phase,
             paths,
             new_ray_queue,
             lambertian_queue,
+            metallic_queue,
             extension_queue,
             instances,
             camera,
@@ -324,7 +369,7 @@ impl State {
             &self.device,
             &self.paths,
             &self.new_ray_queue,
-            &[&self.lambertian_queue],
+            &[&self.lambertian_queue, &self.metallic_queue],
             self.dims,
         );
         let new_ray_commands = self.new_ray_phase.render(
@@ -338,6 +383,12 @@ impl State {
             &self.device,
             &self.paths,
             &self.lambertian_queue,
+            &self.extension_queue,
+        );
+        let metallic_commands = self.metallic_phase.render(
+            &self.device,
+            &self.paths,
+            &self.metallic_queue,
             &self.extension_queue,
         );
         let extension_commands = self.extension_phase.render(
@@ -355,6 +406,7 @@ impl State {
         self.queue.submit([
             logic_commands,
             new_ray_commands,
+            metallic_commands,
             lambertian_commands,
             extension_commands,
             renderer_commands,
