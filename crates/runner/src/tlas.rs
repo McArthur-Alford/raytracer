@@ -7,6 +7,7 @@ use wgpu::util::DeviceExt;
 use crate::blas::BLAS;
 use crate::blas::BLASData;
 use crate::bvh::AABB;
+use crate::bvh::AABBGPU;
 use crate::bvh::BVH;
 use crate::bvh::BVHNode;
 use crate::bvh::BVHNodeGPU;
@@ -94,5 +95,106 @@ impl TLAS {
         bvh.initialize();
 
         bvh
+    }
+}
+
+pub struct TLASData {
+    pub nodes: Vec<BVHNodeGPU>,
+    pub bindgroup: wgpu::BindGroup,
+    pub bindgroup_layout: wgpu::BindGroupLayout,
+}
+
+impl TLASData {
+    pub fn new(device: &wgpu::Device, tlas: TLAS) -> Self {
+        let nodes = tlas
+            .nodes
+            .into_iter()
+            .map(|n| BVHNodeGPU::from(n))
+            .collect_vec();
+
+        let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("BVHNode buffer"),
+            contents: bytemuck::cast_slice(&nodes),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        let blas_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("BLAS buffer"),
+            contents: bytemuck::cast_slice(&tlas.blas),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        let aabb_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("AABB buffer"),
+            contents: bytemuck::cast_slice(
+                &tlas
+                    .aabbs
+                    .into_iter()
+                    .map(|aabb| AABBGPU::from(aabb))
+                    .collect_vec(),
+            ),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Triangles bindgroup layout descriptor"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Triangles bindgroup"),
+            layout: &bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: node_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: blas_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: aabb_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        Self {
+            nodes,
+            bindgroup,
+            bindgroup_layout,
+        }
     }
 }

@@ -188,11 +188,27 @@ pub trait BVH {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
-pub struct BVHNodeGPU {
+pub struct AABBGPU {
     pub lower_bound: [f32; 3], // last one is padding
     pub _pad0: u32,
     pub upper_bound: [f32; 3], // last one is padding
     pub _pad2: u32,
+}
+
+impl From<AABB> for AABBGPU {
+    fn from(aabb: AABB) -> Self {
+        AABBGPU {
+            lower_bound: [aabb.lb.x, aabb.lb.y, aabb.lb.z],
+            upper_bound: [aabb.ub.x, aabb.ub.y, aabb.ub.z],
+            ..Default::default()
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
+pub struct BVHNodeGPU {
+    pub aabb: AABBGPU,
     pub left: u32,        // Left child, (meaningless if 0 || is_leaf)
     pub right: u32,       // Right child, (meaningless if 0 || is_leaf)
     pub is_leaf: u32,     // Leaf node? start/end are meaningless if 0
@@ -204,8 +220,7 @@ pub struct BVHNodeGPU {
 impl From<BVHNode> for BVHNodeGPU {
     fn from(value: BVHNode) -> Self {
         BVHNodeGPU {
-            lower_bound: [value.bounds.lb.x, value.bounds.lb.y, value.bounds.lb.z],
-            upper_bound: [value.bounds.ub.x, value.bounds.ub.y, value.bounds.ub.z],
+            aabb: AABBGPU::from(value.bounds),
             left: value.left as u32,
             right: value.right as u32,
             is_leaf: value.is_leaf as u32,
