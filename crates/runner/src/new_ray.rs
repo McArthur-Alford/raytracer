@@ -3,6 +3,7 @@ use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{
     camera::{self, CameraData},
+    dims::Dims,
     path, queue,
 };
 
@@ -17,6 +18,7 @@ impl NewRayPhase {
         new_ray_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         camera: &camera::Camera,
+        dims: &Dims,
     ) -> Self {
         let compute_shader =
             device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/new_ray.spv")));
@@ -28,6 +30,7 @@ impl NewRayPhase {
                 &new_ray_queue.bind_group_layout,
                 &extension_queue.bind_group_layout,
                 &camera.bind_group_layout,
+                &dims.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -51,6 +54,7 @@ impl NewRayPhase {
         new_ray_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         camera: &camera::Camera,
+        dims: &Dims,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("LogicPhase Encoder"),
@@ -62,6 +66,7 @@ impl NewRayPhase {
         compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(3, &camera.bind_group, &[]);
+        compute_pass.set_bind_group(4, &dims.bindgroup, &[]);
         compute_pass.dispatch_workgroups(new_ray_queue.size.div_ceil(64), 1, 1);
 
         drop(compute_pass);

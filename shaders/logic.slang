@@ -12,11 +12,13 @@ import queue;
 
 [[vk::binding(0,2)]] RWStructuredBuffer<uint> output;
 
-[[vk::binding(0,3)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
-[[vk::binding(1,3)]] RWStructuredBuffer<uint> qd_lambertian;
+[[vk::binding(0,3)]] ConstantBuffer<uint2> dims;
 
-[[vk::binding(0,4)]] RWStructuredBuffer<QueueHeader> qh_metallic;
-[[vk::binding(1,4)]] RWStructuredBuffer<uint> qd_metallic;
+[[vk::binding(0,4)]] RWStructuredBuffer<QueueHeader> qh_lambertian;
+[[vk::binding(1,4)]] RWStructuredBuffer<uint> qd_lambertian;
+
+[[vk::binding(0,5)]] RWStructuredBuffer<QueueHeader> qh_metallic;
+[[vk::binding(1,5)]] RWStructuredBuffer<uint> qd_metallic;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -32,10 +34,10 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
 [shader("compute")]
 [numthreads(16,16,1)]
 void logicMain(uint3 threadId : SV_DispatchThreadID) {
-  if (threadId.x > 1024 || threadId.y > 1024) {
+  if (threadId.x > dims.x || threadId.y > dims.y) {
     return;
   }
-  uint32_t idx = threadId.x + threadId.y * 1024;
+  uint32_t idx = threadId.x + threadId.y * dims.x;
 
   let path = &paths[idx];
   let sample_state = &sample_states[idx];
@@ -44,7 +46,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
   if (path.generated == 0) {
     // Path has never been generated
     // Set the pos:
-    path.screen_pos = float2(threadId.xy) / 1024.0;
+    path.screen_pos = float2(threadId.xy) / float2(dims.x, dims.y);
     path.bounces = 8;
     path.terminated = 0;
     path.throughput = float3(1.0);
@@ -67,15 +69,15 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     switch (hit.mat) {
       case 0:
         // No material??? Shouldn't get here.
-        output[threadId.x + threadId.y * 1024] = pack_rgb(float3(0.0,0.0,255.0));
+        output[threadId.x + threadId.y * dims.x] = pack_rgb(float3(0.0,0.0,255.0));
         break;
       case 1:
         // Lambertian
-        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * 1024);
+        queuePush(qh_lambertian, qd_lambertian, threadId.x + threadId.y * dims.x);
         break;
       case 2:
         // Lambertian
-        queuePush(qh_metallic, qd_metallic, threadId.x + threadId.y * 1024);
+        queuePush(qh_metallic, qd_metallic, threadId.x + threadId.y * dims.x);
         break;
       default:
         break;

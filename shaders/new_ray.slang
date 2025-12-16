@@ -17,6 +17,8 @@ import random;
 
 [[vk::binding(0,3)]] ConstantBuffer<Camera> camera;
 
+[[vk::binding(0,4)]] ConstantBuffer<uint2> dims;
+
 [shader("compute")]
 [numthreads(256,1,1)]
 void newRayMain(uint3 threadId : SV_DispatchThreadID) {
@@ -38,7 +40,7 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   RandomResult result = Random(random_states[index]);
   RandomResult result2 = Random(result.state);
   random_states[index]= result2.state;
-  let d = float2(result.value, result2.value) / 1024.0;
+  let d = float2(result.value, result2.value) / float2(dims.x, dims.y);
   // let d = float2(0.0);
 
   let offset = -2.0 * camera.up * camera.dims.y * (path.screen_pos.y + d.y)

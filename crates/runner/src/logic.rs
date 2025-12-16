@@ -2,7 +2,7 @@ use tracing::info;
 use wesl::include_wesl;
 use wgpu::{include_spirv, util::DeviceExt};
 
-use crate::{path, queue};
+use crate::{dims::Dims, path, queue};
 
 pub struct LogicPhase {
     start_pipeline: wgpu::ComputePipeline,
@@ -17,7 +17,7 @@ impl LogicPhase {
         path_buffer: &path::Paths,
         new_ray_queue: &queue::Queue,
         material_queues: &[&queue::Queue],
-        dims: (u32, u32),
+        dims: &Dims,
     ) -> Self {
         let compute_shader =
             device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/logic.spv")));
@@ -25,7 +25,7 @@ impl LogicPhase {
         // Pixel output buffer (atomically written to in shader?):
         let output_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("LogicPhase Output"),
-            contents: bytemuck::cast_slice(&(0..(dims.0 * dims.1)).collect::<Vec<_>>()),
+            contents: bytemuck::cast_slice(&(0..(dims.size())).collect::<Vec<_>>()),
             usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::STORAGE,
         });
 
@@ -60,6 +60,7 @@ impl LogicPhase {
                 path_buffer.path_bind_group_layout.clone(),
                 new_ray_queue.bind_group_layout.clone(),
                 output_bind_group_layout,
+                dims.bindgroup_layout.clone(),
             ]
             .into_iter(),
             material_queues
@@ -106,7 +107,7 @@ impl LogicPhase {
         path_buffer: &path::Paths,
         new_ray_queue: &queue::Queue,
         material_queues: &[&queue::Queue],
-        dims: (u32, u32),
+        dims: &Dims,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("LogicPhase Encoder"),
@@ -119,8 +120,9 @@ impl LogicPhase {
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.output_bind_group, &[]);
+        compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
         for (i, m) in material_queues.iter().enumerate() {
-            compute_pass.set_bind_group(i as u32 + 3, &m.bind_group, &[]);
+            compute_pass.set_bind_group(i as u32 + 4, &m.bind_group, &[]);
         }
         compute_pass.dispatch_workgroups(1, 1, 1);
 
@@ -129,10 +131,11 @@ impl LogicPhase {
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &new_ray_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &self.output_bind_group, &[]);
+        compute_pass.set_bind_group(3, &dims.bindgroup, &[]);
         for (i, m) in material_queues.iter().enumerate() {
-            compute_pass.set_bind_group(i as u32 + 3, &m.bind_group, &[]);
+            compute_pass.set_bind_group(i as u32 + 4, &m.bind_group, &[]);
         }
-        compute_pass.dispatch_workgroups((dims.0).div_ceil(16), (dims.1).div_ceil(16), 1);
+        compute_pass.dispatch_workgroups((dims.dims.0).div_ceil(16), (dims.dims.1).div_ceil(16), 1);
         drop(compute_pass);
 
         encoder.finish()
