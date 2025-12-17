@@ -58,6 +58,7 @@ pub struct State {
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas_data: blas::BLASData,
+    tlas_data: tlas::TLASData,
     camera: camera::Camera,
     window: Arc<Window>,
     dims: (u32, u32),
@@ -90,7 +91,7 @@ impl State {
             .await?;
 
         let mut limits = wgpu::Limits::defaults();
-        limits.max_bind_groups = 5;
+        limits.max_bind_groups = 6;
         // limits.max_storage_buffer_binding_size = 184549552;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -212,6 +213,7 @@ impl State {
         let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
         let blas_data = blas::BLASData::new(&device, blases);
+        let tlas_data = tlas::TLASData::new(&device, tlas);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, dims);
@@ -271,6 +273,7 @@ impl State {
             &paths,
             &extension_queue,
             &blas_data,
+            &tlas_data,
             spheres.as_slice(),
             &instances,
         );
@@ -298,6 +301,7 @@ impl State {
             dims,
             keys_pressed: HashSet::new(),
             blas_data,
+            tlas_data,
         })
     }
 
@@ -409,6 +413,7 @@ impl State {
             &self.paths,
             &self.extension_queue,
             &self.blas_data,
+            &self.tlas_data,
             &self.instances,
         );
 
