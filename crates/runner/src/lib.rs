@@ -174,16 +174,16 @@ impl State {
             .into_iter()
             .map(|ld| MetallicData {
                 albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
-                fuzz: random_range(0.0..=1.0),
+                fuzz: random_range(-1.0..=1.0f32).clamp(0.0, 1.0),
                 ..Default::default()
             })
             .collect_vec();
 
         // Instances:
         let mut instances = vec![];
-        for x in 0..10 {
-            for y in 0..1 {
-                for z in 0..10 {
+        for x in -2..=2 {
+            for y in 0..5 {
+                for z in 1..=5 {
                     let material = random_range(1..=2);
                     let material_idx = match material {
                         1 => random_range(0..lambertian_data.len() as u32),
@@ -192,17 +192,13 @@ impl State {
                     };
                     instances.push(Instance {
                         transform: instance::Transform {
-                            scale: Vec3::splat(random_range(1.0..=2.0)),
-                            rotation: Vec3::ZERO.map(|_| random_range(0.0..2.0 * f32::consts::PI)),
-                            translation: Vec3::new(
-                                x as f32 * 3.0 - 15.0,
-                                y as f32 * 3.0,
-                                z as f32 * 3.0 + 5.0,
-                            ),
+                            scale: Vec3::splat(random_range(1.0..=1.5)),
+                            rotation: Vec3::ZERO.map(|_| random_range(0.0..=1.0 * f32::consts::PI)),
+                            translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0),
                             ..Default::default()
                         },
                         mesh: random_range(0..meshes.len() as u32),
-                        material: material, // Lambertian
+                        material: material,
                         material_idx: material_idx,
                         ..Default::default()
                     });
@@ -213,6 +209,7 @@ impl State {
 
         // Make the BLAS & TLAS
         let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
+        dbg!(blases.iter().map(|blas| blas.nodes[0]).collect_vec());
         let tlas = tlas::TLAS::new(&blases, &instances.instances);
 
         let blas_data = blas::BLASData::new(&device, blases);

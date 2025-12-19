@@ -107,12 +107,12 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   return;
 }
 
-bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
-  var tmin = float.minValue;
+bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, out float tmin, inout float tmax) {
+  tmin = float.minValue;
   let dir_inv = 1.0 / ray.dir;
 
   for (int d = 0; d < 3; d++) {
-    let sign = dir_inv[d] > 0;
+    let sign = dir_inv[d] >= 0;
     float bmin = select(sign, lb[d], ub[d]);
     float bmax = select(!sign, lb[d], ub[d]);
 
@@ -123,10 +123,10 @@ bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, float tmax) {
     tmax = min(dmax, tmax);
   }
 
-  return tmin < tmax;
+  return tmin <= tmax;
 }
 
-void rayBLASIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out float t, out Hit h) {
+void rayBLASIntersect(const Ray ray, const uint bvh_node, in float tmax, out float2 uv, out float t, out Hit h) {
   let root = bvh_node;
   var current = bvh_node;
   t = tmax;
@@ -138,8 +138,15 @@ void rayBLASIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out flo
   do {
     let node = blas_nodes[current];
 
-    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, t);
-    current = select(!hit || node.is_leaf == 1, node.right, node.left);
+    float tmax = t;
+    float tmin;
+    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, tmin, tmax);
+
+    // If we hit, progress left
+    current = select(hit, node.left, node.right);
+    // If it's a leaf, always go right
+    current = select(node.is_leaf == 1, node.right, current);
+
     if (!hit || node.is_leaf == 0) {
       continue;
     }
@@ -159,21 +166,29 @@ void rayBLASIntersect(Ray ray, uint bvh_node, float tmax, out float2 uv, out flo
   } while (root != current);
 }
 
-void rayTLASIntersect(Ray ray, inout float2 uv, inout float t, inout Hit h, inout uint mat, inout uint mat_data) {
+void rayTLASIntersect(const Ray ray, inout float2 uv, inout float t, inout Hit h, inout uint mat, inout uint mat_data) {
   let root = 0;
   var current = 0;
 
   do {
     let node = tlas_nodes[current];
 
-    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, t);
-    current = select(!hit || node.is_leaf == 1, node.right, node.left);
+    float tmax = t;
+    float tmin;
+    let hit = rayBoxIntersect(ray, node.lb.xyz, node.ub.xyz, tmin, tmax) && (tmax >= 0 || tmin >= 0);
+
+    // If we hit, progress left
+    current = select(hit, node.left, node.right);
+    // If it's a leaf, always go right
+    current = select(node.is_leaf == 1, node.right, current);
+
     if (!hit || node.is_leaf == 0) {
       continue;
     }
 
     for (int p = node.start; p < node.end; p++) {
-      float t2;
+
+      float t2 = float.maxValue;
       Hit h2;
       float2 uv2;
 
@@ -189,15 +204,13 @@ void rayTLASIntersect(Ray ray, inout float2 uv, inout float t, inout Hit h, inou
 
       Ray r = ray;
       r.dir = normalize(r.dir);
-      r.pos = (mul(mi, float4(r.pos, 1.0))).xyz;
-      r.dir = (mul(mi, float4(r.dir, 0.0))).xyz;
+      r.pos = mul(mi, float4(r.pos, 1.0)).xyz;
+      r.dir = mul(mi, float4(r.dir, 0.0)).xyz;
 
       rayBLASIntersect(r, bid, t, uv2, t2, h2);
 
-      h2.pos  =           (mul(m, float4(h2.pos,  1.0))).xyz;
-      h2.norm = normalize((mul(m, float4(h2.norm, 0.0))).xyz);
-
-      // t2 = length(h2.pos - ray.pos) / length(ray.dir);
+      h2.pos  =           mul(m, float4(h2.pos,  1.0)).xyz;
+      h2.norm = normalize(mul(m, float4(h2.norm, 0.0)).xyz);
 
       if (t2 >= 0 && t2 < t) {
         mat = instance.material;
@@ -207,7 +220,7 @@ void rayTLASIntersect(Ray ray, inout float2 uv, inout float t, inout Hit h, inou
         h = h2;
       }
     }
-  } while (root != current);
+  } while (current != root);
 }
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
