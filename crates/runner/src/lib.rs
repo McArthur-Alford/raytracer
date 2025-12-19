@@ -181,7 +181,7 @@ impl State {
 
         // Instances:
         let mut instances = vec![];
-        for x in -2..=2 {
+        for x in 1..=5 {
             for y in 0..5 {
                 for z in 1..=5 {
                     let material = random_range(1..=2);
@@ -194,7 +194,8 @@ impl State {
                         transform: instance::Transform {
                             scale: Vec3::splat(random_range(1.0..=1.5)),
                             rotation: Vec3::ZERO.map(|_| random_range(0.0..=1.0 * f32::consts::PI)),
-                            translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0),
+                            translation: Vec3::new(x as f32 * 2.0, y as f32 * 2.0, z as f32 * 2.0)
+                                .map(|i| i + random_range(-0.25..=0.25)),
                             ..Default::default()
                         },
                         mesh: random_range(0..meshes.len() as u32),

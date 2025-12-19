@@ -110,8 +110,6 @@ impl TLAS {
 
         bvh.initialize(2);
 
-        dbg!(&bvh);
-
         bvh
     }
 }
@@ -136,7 +134,6 @@ impl TLASData {
             usage: wgpu::BufferUsages::STORAGE,
         });
 
-        dbg!(&tlas.instance_ids);
         let instance_id_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance ID buffer"),
             contents: bytemuck::cast_slice(

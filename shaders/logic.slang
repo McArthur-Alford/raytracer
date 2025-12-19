@@ -33,6 +33,20 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
 
 [shader("compute")]
 [numthreads(16,16,1)]
+void maintainSamples(uint3 threadId : SV_DispatchThreadID) {
+  // Cycles the samples buffer, swap-adding to the active
+  // sample list where cycles need reactivation.
+}
+
+[shader("compute")]
+[numthreads(16,16,1)]
+void maintainActiveSamples(uint3 threadId : SV_DispatchThreadID) {
+  // Pull of the sample completion queue and deactivates those samples
+  // swap-removing from the active sample list.
+}
+
+[shader("compute")]
+[numthreads(16,16,1)]
 void logicMain(uint3 threadId : SV_DispatchThreadID) {
   if (threadId.x > dims.x || threadId.y > dims.y) {
     return;
