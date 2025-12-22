@@ -28,6 +28,8 @@ import camera;
 [[vk::binding(3,6)]] RWStructuredBuffer<uint> qd_metallic;
 [[vk::binding(4,6)]] RWStructuredBuffer<QueueHeader> qh_dielectric;
 [[vk::binding(5,6)]] RWStructuredBuffer<uint> qd_dielectric;
+[[vk::binding(6,6)]] RWStructuredBuffer<QueueHeader> qh_emissive;
+[[vk::binding(7,6)]] RWStructuredBuffer<uint> qd_emissive;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -37,6 +39,7 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
     queueReset(qh_lambertian);
     queueReset(qh_metallic);
     queueReset(qh_dielectric);
+    queueReset(qh_emissive);
     return;
   }
 }
@@ -141,6 +144,9 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
         break;
       case 3:
         queuePush(qh_dielectric, qd_dielectric, threadId.x);
+        break;
+      case 4:
+        queuePush(qh_emissive, qd_emissive, threadId.x);
         break;
       default:
         break;

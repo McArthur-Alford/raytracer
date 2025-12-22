@@ -3,6 +3,7 @@ mod bvh;
 mod camera;
 mod dielectric;
 mod dims;
+mod emissive;
 mod extension;
 mod instance;
 mod lambertian;
@@ -67,6 +68,8 @@ pub struct State {
     window: Arc<Window>,
     dims: Dims,
     keys_pressed: HashSet<KeyCode>,
+    emissive_queue: queue::Queue,
+    emissive_phase: emissive::EmissivePhase,
 }
 
 impl State {
@@ -132,11 +135,18 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (2048, 2048), 1024 * 1024);
+        let dims = Dims::new(&device, (512, 512), 512 * 512);
 
         // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
-        let (lambertian_data, metallic_data, dielectric_data, instances, blas_data, tlas_data) =
-            scenes::boxes(&device);
+        let (
+            lambertian_data,
+            metallic_data,
+            dielectric_data,
+            emissive_data,
+            instances,
+            blas_data,
+            tlas_data,
+        ) = scenes::grid_scene(&device);
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);
@@ -145,6 +155,7 @@ impl State {
         let lambertian_queue = queue::Queue::new(&device, dims.threads, Some("LambertianQueue"));
         let metallic_queue = queue::Queue::new(&device, dims.threads, Some("MetallicQueue"));
         let dielectric_queue = queue::Queue::new(&device, dims.threads, Some("DielectricQueue"));
+        let emissive_queue = queue::Queue::new(&device, dims.threads, Some("EmissiveQueue"));
         let camera = camera::Camera::new(&device, Some("MainCamera"));
 
         // Sample States
@@ -157,7 +168,12 @@ impl State {
             &samples,
             &camera,
             &new_ray_queue,
-            &[&lambertian_queue, &metallic_queue, &dielectric_queue],
+            &[
+                &lambertian_queue,
+                &metallic_queue,
+                &dielectric_queue,
+                &emissive_queue,
+            ],
             &dims,
         );
         let new_ray_phase = new_ray::NewRayPhase::new(
@@ -192,6 +208,14 @@ impl State {
             &extension_queue,
             dielectric_data,
             Some("Dielectric"),
+        );
+        let emissive_phase = emissive::EmissivePhase::new(
+            &device,
+            &paths,
+            &emissive_queue,
+            &extension_queue,
+            emissive_data,
+            Some("Emissive"),
         );
 
         let mut rng = rand::rng();
@@ -237,6 +261,7 @@ impl State {
             metallic_phase,
             dielectric_phase,
             extension_phase,
+            emissive_phase,
             paths,
             new_ray_queue,
             lambertian_queue,
@@ -249,6 +274,7 @@ impl State {
             keys_pressed: HashSet::new(),
             blas_data,
             tlas_data,
+            emissive_queue,
         })
     }
 
@@ -364,6 +390,12 @@ impl State {
             &self.dielectric_queue,
             &self.extension_queue,
         );
+        let emissive_commands = self.emissive_phase.render(
+            &self.device,
+            &self.paths,
+            &self.emissive_queue,
+            &self.extension_queue,
+        );
         let extension_commands = self.extension_phase.render(
             &self.device,
             &self.paths,
@@ -383,6 +415,7 @@ impl State {
             metallic_commands,
             lambertian_commands,
             dielectric_commands,
+            emissive_commands,
             extension_commands,
             renderer_commands,
         ]);

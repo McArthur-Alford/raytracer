@@ -4,6 +4,7 @@ use std::f32::consts::PI;
 use crate::blas;
 use crate::blas::BLASData;
 use crate::dielectric::DielectricData;
+use crate::emissive::EmissiveData;
 use crate::instance;
 use crate::instance::Instance;
 use crate::instance::Instances;
@@ -22,6 +23,7 @@ pub(crate) fn grid_scene(
     Vec<LambertianData>,
     Vec<MetallicData>,
     Vec<DielectricData>,
+    Vec<EmissiveData>,
     Instances,
     BLASData,
     TLASData,
@@ -77,19 +79,36 @@ pub(crate) fn grid_scene(
         })
         .collect_vec();
 
-    let dielectric_data = vec![DielectricData {
-        ..Default::default()
-    }];
+    let emissive_data = lambertian_data
+        .clone()
+        .into_iter()
+        .map(|ld| EmissiveData {
+            albedo: ld.albedo.map(|_| random_range(0.4..=1.0)),
+            ..Default::default()
+        })
+        .collect_vec();
+
+    let dielectric_data = lambertian_data
+        .clone()
+        .into_iter()
+        .map(|ld| DielectricData {
+            albedo: ld.albedo.map(|_| random_range(0.0..=1.0)),
+            ir: random_range(1.0..=1.8f32),
+            ..Default::default()
+        })
+        .collect_vec();
 
     // Instances:
     let mut instances = vec![];
     for x in 1..=10 {
         for y in 0..5 {
             for z in 1..=10 {
-                let material = random_range(1..=2);
+                let material = random_range(1..=4);
                 let material_idx = match material {
                     1 => random_range(0..lambertian_data.len() as u32),
                     2 => random_range(0..metallic_data.len() as u32),
+                    3 => random_range(0..dielectric_data.len() as u32),
+                    4 => random_range(0..emissive_data.len() as u32),
                     _ => panic!(),
                 };
                 instances.push(Instance {
@@ -122,6 +141,7 @@ pub(crate) fn grid_scene(
         lambertian_data,
         metallic_data,
         dielectric_data,
+        emissive_data,
         instances,
         blas_data,
         tlas_data,
@@ -134,6 +154,7 @@ pub(crate) fn cornell_scene(
     Vec<LambertianData>,
     Vec<MetallicData>,
     Vec<DielectricData>,
+    Vec<EmissiveData>,
     Instances,
     BLASData,
     TLASData,
@@ -158,6 +179,9 @@ pub(crate) fn cornell_scene(
 
     meshes.push(mesh::Mesh::rect());
     let quad_id = (meshes.len() - 1) as u32;
+
+    meshes.push(mesh::Mesh::cube());
+    let cube_id = (meshes.len() - 1) as u32;
 
     // Make material data for lambertian:
     let mut lambertian_data = vec![
@@ -197,9 +221,13 @@ pub(crate) fn cornell_scene(
     ];
 
     let dielectric_data = vec![DielectricData {
-        albedo: [0.83, 1.0, 0.0, 0.0],
-        ir: 1.47,
+        albedo: [1.0, 1.0, 1.0, 0.0],
+        ir: 1.2,
         ..Default::default()
+    }];
+
+    let emissive_data = vec![EmissiveData {
+        albedo: [0.5, 0.8, 0.9, 1.0],
     }];
 
     // Instances:
@@ -252,18 +280,31 @@ pub(crate) fn cornell_scene(
                 ..Default::default()
             },
             // Ceiling
-            // Instance {
-            //     transform: instance::Transform {
-            //         scale: Vec3::new(half * 2.0, depth, 1.0),
-            //         rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
-            //         translation: Vec3::new(0.0, half, z_mid),
-            //         ..Default::default()
-            //     },
-            //     mesh: quad_id,
-            //     material: 1,
-            //     material_idx: 0,
-            //     ..Default::default()
-            // },
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(half * 2.0, depth, 1.0),
+                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+                    translation: Vec3::new(0.0, half, z_mid),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+            // Ceiling Light
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(6.0, 0.5, 6.0),
+                    rotation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::new(0.0, half - 0.25, half),
+                    ..Default::default()
+                },
+                mesh: cube_id,
+                material: 4,
+                material_idx: 0,
+                ..Default::default()
+            },
             // Left wall
             Instance {
                 transform: instance::Transform {
@@ -291,31 +332,31 @@ pub(crate) fn cornell_scene(
                 ..Default::default()
             },
             // Dragon Centered:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::splat(6.0),
-                    rotation: Vec3::new(0.0, PI * 0.25, 0.0),
-                    translation: Vec3::new(0.0, -half + 1.7, half),
-                    ..Default::default()
-                },
-                mesh: 2,
-                material: 3,
-                material_idx: 0,
-                ..Default::default()
-            },
-            // Suzanne Centered:
             // Instance {
             //     transform: instance::Transform {
-            //         scale: Vec3::splat(4.0),
-            //         rotation: Vec3::new(0.0, 0.0, 0.0),
-            //         translation: Vec3::new(0.0, 0.0, half),
+            //         scale: Vec3::splat(6.0),
+            //         rotation: Vec3::new(0.0, PI * 0.25, 0.0),
+            //         translation: Vec3::new(0.0, -half + 1.7, half),
             //         ..Default::default()
             //     },
-            //     mesh: 0,
+            //     mesh: 2,
             //     material: 3,
             //     material_idx: 0,
             //     ..Default::default()
             // },
+            // Suzanne Centered:
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::splat(4.0),
+                    rotation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::new(0.0, 0.0, half),
+                    ..Default::default()
+                },
+                mesh: 0,
+                material: 3,
+                material_idx: 0,
+                ..Default::default()
+            },
             // Teapot Centered:
             // Instance {
             //     transform: instance::Transform {
@@ -351,18 +392,20 @@ pub(crate) fn cornell_scene(
         lambertian_data,
         metallic_data,
         dielectric_data,
+        emissive_data,
         instances,
         blas_data,
         tlas_data,
     )
 }
 
-pub(crate) fn boxes(
+pub fn boxes(
     device: &wgpu::Device,
 ) -> (
     Vec<LambertianData>,
     Vec<MetallicData>,
     Vec<DielectricData>,
+    Vec<EmissiveData>,
     Instances,
     BLASData,
     TLASData,
@@ -407,6 +450,10 @@ pub(crate) fn boxes(
         LambertianData {
             albedo: [0.9, 0.4, 0.4, 0.0],
         },
+        // Purple:
+        LambertianData {
+            albedo: [0.8, 0.05, 0.67, 0.0],
+        },
     ];
     for _ in 0..10 {
         lambertian_data.push(LambertianData {
@@ -430,8 +477,12 @@ pub(crate) fn boxes(
 
     let dielectric_data = vec![DielectricData {
         albedo: [1.0, 1.0, 1.0, 0.0],
-        ir: 1.3,
+        ir: 1.2,
         ..Default::default()
+    }];
+
+    let emissive_data = vec![EmissiveData {
+        albedo: [0.5, 0.8, 0.9, 1.0],
     }];
 
     // Instances:
@@ -460,7 +511,7 @@ pub(crate) fn boxes(
             // Front wall:
             // Instance {
             //     transform: instance::Transform {
-            //         scale: Vec3::new(half * 2.0, half * 1.8, 1.0),
+            //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
             //         rotation: Vec3::ZERO,
             //         translation: Vec3::new(0.0, 0.0, 0.0),
             //         ..Default::default()
@@ -484,18 +535,31 @@ pub(crate) fn boxes(
                 ..Default::default()
             },
             // Ceiling
-            // Instance {
-            //     transform: instance::Transform {
-            //         scale: Vec3::new(half * 2.0, depth, 1.0),
-            //         rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
-            //         translation: Vec3::new(0.0, half, z_mid),
-            //         ..Default::default()
-            //     },
-            //     mesh: quad_id,
-            //     material: 1,
-            //     material_idx: 0,
-            //     ..Default::default()
-            // },
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(half * 2.0, depth, 1.0),
+                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+                    translation: Vec3::new(0.0, half, z_mid),
+                    ..Default::default()
+                },
+                mesh: quad_id,
+                material: 1,
+                material_idx: 0,
+                ..Default::default()
+            },
+            // Ceiling Light
+            Instance {
+                transform: instance::Transform {
+                    scale: Vec3::new(6.0, 0.5, 6.0),
+                    rotation: Vec3::new(0.0, 0.0, 0.0),
+                    translation: Vec3::new(0.0, half - 0.25, half),
+                    ..Default::default()
+                },
+                mesh: cube_id,
+                material: 4,
+                material_idx: 0,
+                ..Default::default()
+            },
             // Left wall
             Instance {
                 transform: instance::Transform {
@@ -527,19 +591,19 @@ pub(crate) fn boxes(
                 transform: instance::Transform {
                     scale: Vec3::new(2.5, 6.0, 2.5),
                     rotation: Vec3::new(0.0, PI * -0.4, 0.0),
-                    translation: Vec3::new(-half + 2.3, -half + 3.0, half + 1.8),
+                    translation: Vec3::new(-1.0, -half + 3.0, half + 2.0),
                     ..Default::default()
                 },
                 mesh: cube_id,
-                material: 2,
-                material_idx: 1,
+                material: 1,
+                material_idx: 4,
                 ..Default::default()
             },
             Instance {
                 transform: instance::Transform {
                     scale: Vec3::new(2.5, 3.0, 2.5),
                     rotation: Vec3::new(0.0, PI * -0.1, 0.0),
-                    translation: Vec3::new(half - 2.5, -half + 1.5, half - 1.4),
+                    translation: Vec3::new(0.4, -half + 1.5, half - 1.8),
                     ..Default::default()
                 },
                 mesh: cube_id,
@@ -569,6 +633,7 @@ pub(crate) fn boxes(
         lambertian_data,
         metallic_data,
         dielectric_data,
+        emissive_data,
         instances,
         blas_data,
         tlas_data,
@@ -581,6 +646,7 @@ pub(crate) fn windows(
     Vec<LambertianData>,
     Vec<MetallicData>,
     Vec<DielectricData>,
+    Vec<EmissiveData>,
     Instances,
     BLASData,
     TLASData,
@@ -601,6 +667,10 @@ pub(crate) fn windows(
     }];
 
     let metallic_data = vec![MetallicData {
+        ..Default::default()
+    }];
+
+    let emissive_data = vec![EmissiveData {
         ..Default::default()
     }];
 
@@ -818,6 +888,7 @@ pub(crate) fn windows(
         lambertian_data,
         metallic_data,
         dielectric_data,
+        emissive_data,
         instances,
         blas_data,
         tlas_data,

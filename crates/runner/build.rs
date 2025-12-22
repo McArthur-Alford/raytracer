@@ -52,4 +52,5 @@ fn main() {
     build_slang("lambertian");
     build_slang("metallic");
     build_slang("dielectric");
+    build_slang("emissive");
 }
