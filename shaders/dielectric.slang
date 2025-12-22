@@ -7,7 +7,7 @@ import random;
 
 public struct DielectricData {
   float4 albedo;
-  float fuzz;
+  float ir;
 };
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -22,6 +22,25 @@ public struct DielectricData {
 
 [[vk::binding(0,3)]] StructuredBuffer<DielectricData> lb_data;
 
+
+float reflectance(float cosine, float ref_idx) {
+  var r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+  r0 *= r0;
+  return r0 + (1.0 - r0) * pow((1.0 - cosine), 5);
+}
+
+float3 reflect_vec(float3 v, float3 n) {
+  return v - 2.0 * dot(v, n) * n;
+}
+
+float3 refract_vec(float3 uv, float3 n, float eta) {
+  float cos_theta = min(-dot(uv, n), 1.0);
+  float3 r_out_perp = eta * (uv + cos_theta * n);
+  float k = 1.0 - dot(r_out_perp, r_out_perp);
+  float3 r_out_parallel = -sqrt(max(k, 0.0)) * n;
+  return r_out_perp + r_out_parallel;
+}
+
 [shader("compute")]
 [numthreads(64,1,1)]
 void newRayMain(uint3 threadId : SV_DispatchThreadID) {
@@ -34,21 +53,36 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   let hit = &hits[index];
   let mat_data = lb_data[hit.mat_data];
 
-  path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
-  // path.ray.pos = hit.hit.pos;
-  path.throughput *= mat_data.albedo.xyz;
+  let front_face = dot(hit.hit.norm, path.ray.dir) < 0;
+  if (!front_face) {
+    hit.hit.norm *= -1;
+  }
 
-  let reflected = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
+  let ir = mat_data.ir;
+  let refraction_ratio = front_face ? (1.0 / ir) : (ir);
+
+  let unit_direction = normalize(path.ray.dir);
+  let cos_theta = min(-dot(unit_direction, hit.hit.norm), 1.0);
+  let sin_theta = sqrt(max(0.0, 1.0 - pow(cos_theta,2)));
+  let cannot_refract = refraction_ratio * sin_theta > 1.0;
+  let reflectance_val = reflectance(cos_theta, refraction_ratio);
 
   RandomResult result = Random(random_states[index]);
-  RandomResult result2 = Random(result.state);
-  RandomResult result3 = Random(result2.state);
-  random_states[index] = result2.state;
-  let random_unit_sphere = normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
-  float3 scatter = reflected + random_unit_sphere * mat_data.fuzz;
+  random_states[index] = result.state;
 
-  path.ray.dir = normalize(select(length(scatter) < 1e-2, reflected, scatter));
+  float3 scatter;
+  if (cannot_refract || reflectance_val > result.value) {
+    // Reflect the ray:
+    scatter = reflect_vec(unit_direction, hit.hit.norm);
+    path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-4;
+  } else {
+    // Refract the ray:
+    scatter = refract_vec(unit_direction, hit.hit.norm, refraction_ratio);
+    path.ray.pos = hit.hit.pos - hit.hit.norm * 1e-4;
+  }
+  
+  path.ray.dir = normalize(scatter);
+  path.throughput = mat_data.albedo.xyz;
   
   queuePush(qh_extension, qd_extension, index);
 }
-

@@ -163,7 +163,7 @@ pub(crate) fn cornell_scene(
     let mut lambertian_data = vec![
         // Basic gray/white:
         LambertianData {
-            albedo: [1.0, 1.0, 1.0, 0.0],
+            albedo: [0.9, 0.9, 0.9, 0.0],
         },
         // For now, 3 instances, r/g/b each
         LambertianData {
@@ -197,6 +197,8 @@ pub(crate) fn cornell_scene(
     ];
 
     let dielectric_data = vec![DielectricData {
+        albedo: [0.0, 0.83, 1.0, 0.0],
+        ir: 1.47,
         ..Default::default()
     }];
 
@@ -250,18 +252,18 @@ pub(crate) fn cornell_scene(
                 ..Default::default()
             },
             // Ceiling
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, depth, 1.0),
-                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
-                    translation: Vec3::new(0.0, half, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
-                ..Default::default()
-            },
+            // Instance {
+            //     transform: instance::Transform {
+            //         scale: Vec3::new(half * 2.0, depth, 1.0),
+            //         rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+            //         translation: Vec3::new(0.0, half, z_mid),
+            //         ..Default::default()
+            //     },
+            //     mesh: quad_id,
+            //     material: 1,
+            //     material_idx: 0,
+            //     ..Default::default()
+            // },
             // Left wall
             Instance {
                 transform: instance::Transform {
@@ -288,6 +290,7 @@ pub(crate) fn cornell_scene(
                 material_idx: 2,
                 ..Default::default()
             },
+            // Dragon Centered:
             Instance {
                 transform: instance::Transform {
                     scale: Vec3::splat(6.0),
@@ -296,10 +299,36 @@ pub(crate) fn cornell_scene(
                     ..Default::default()
                 },
                 mesh: 2,
-                material: 2,
-                material_idx: 1,
+                material: 3,
+                material_idx: 0,
                 ..Default::default()
             },
+            // Suzanne Centered:
+            // Instance {
+            //     transform: instance::Transform {
+            //         scale: Vec3::splat(4.0),
+            //         rotation: Vec3::new(0.0, 0.0, 0.0),
+            //         translation: Vec3::new(0.0, 0.0, half),
+            //         ..Default::default()
+            //     },
+            //     mesh: 0,
+            //     material: 3,
+            //     material_idx: 0,
+            //     ..Default::default()
+            // },
+            // Teapot Centered:
+            // Instance {
+            //     transform: instance::Transform {
+            //         scale: Vec3::splat(4.0),
+            //         rotation: Vec3::new(0.0, 0.0, 0.0),
+            //         translation: Vec3::new(0.0, 0.0, half),
+            //         ..Default::default()
+            //     },
+            //     mesh: 1,
+            //     material: 3,
+            //     material_idx: 0,
+            //     ..Default::default()
+            // },
         ]
         .into_iter()
         .map(|mut i| {

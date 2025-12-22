@@ -101,11 +101,10 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   }
   t = f * dot(e2, r);
 
-  h.norm = normalize(cross(e1, e2));
-  h.norm = -sign(dot(h.norm, ray.dir)) * h.norm;
+  // h.norm = normalize(cross(e1, e2));
   h.prim = face;
   uv = float2(u,v);
-  // h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+  h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
   // h.pos = ray.pos + t * ray.dir;
   h.pos = p0 + e1 * u + e2 * v;
 

@@ -174,7 +174,6 @@ impl LogicPhase {
         samples: &sample::Samples,
         camera: &camera::Camera,
         new_ray_queue: &queue::Queue,
-        material_queues: &[&queue::Queue],
         dims: &Dims,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

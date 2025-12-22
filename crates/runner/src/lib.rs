@@ -132,7 +132,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (512, 512), 512 * 512);
+        let dims = Dims::new(&device, (2048, 2048), 1024 * 1024);
 
         // let (lambertian_data, metallic_data, instances, blas_data, tlas_data) = grid_scene(&device);
         let (lambertian_data, metallic_data, dielectric_data, instances, blas_data, tlas_data) =
@@ -335,7 +335,6 @@ impl State {
             &self.samples,
             &self.camera,
             &self.new_ray_queue,
-            &[&self.lambertian_queue, &self.metallic_queue],
             &self.dims,
         );
         let new_ray_commands = self.new_ray_phase.render(

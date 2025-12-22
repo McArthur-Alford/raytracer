@@ -34,6 +34,8 @@ void newRayMain(uint3 threadId : SV_DispatchThreadID) {
   let hit = &hits[index];
   let mat_data = lb_data[hit.mat_data];
 
+  hit.hit.norm = -sign(dot(hit.hit.norm, path.ray.dir)) * hit.hit.norm;
+
   path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
   // path.ray.pos = hit.hit.pos;
   path.throughput *= mat_data.albedo.xyz;

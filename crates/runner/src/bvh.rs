@@ -92,7 +92,8 @@ pub trait BVH {
             // Get the median circle
             let split = node.bounds.lb[axis] + extent[axis] / 2.0;
             let (mut i, mut j) = (node.start, node.end - 1);
-            while i <= j {
+
+            while i < j {
                 if self.elem_centroid(i)[axis] < split {
                     i += 1;
                 } else {

@@ -54,23 +54,85 @@ impl Mesh {
             .map(|p| [p[0] / extent, p[1] / extent, p[2] / extent, 1.0])
             .collect_vec();
 
-        let normals = model
-            .normals
-            .chunks_exact(3)
-            .map(|chunk| [chunk[0], chunk[1], chunk[2], 0.0])
-            .collect_vec();
-
         let faces = model
             .indices
             .chunks_exact(3)
             .map(|chunk| [chunk[0], chunk[1], chunk[2], 0])
             .collect_vec();
 
+        let normals = if model.normals.len() >= model.positions.len() && !model.normals.is_empty() {
+            model
+                .normals
+                .chunks_exact(3)
+                .map(|c| [c[0], c[1], c[2], 0.0])
+                .collect_vec()
+        } else {
+            Self::compute_vertex_normals_ccw(&positions, &model.indices)
+        };
+
         Self {
             positions,
             normals,
             faces,
         }
+    }
+
+    fn compute_vertex_normals_ccw(positions: &[[f32; 4]], indices: &[u32]) -> Vec<[f32; 4]> {
+        let mut acc = vec![[0.0f32, 0.0, 0.0, 0.0]; positions.len()];
+
+        for tri in indices.chunks_exact(3) {
+            let i0 = tri[0] as usize;
+            let i1 = tri[1] as usize;
+            let i2 = tri[2] as usize;
+
+            let p0 = positions[i0];
+            let p1 = positions[i1];
+            let p2 = positions[i2];
+
+            let e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+            let e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+
+            let mut n = [
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0],
+            ];
+
+            let l2 = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+            if l2 > 0.0 {
+                let inv_len = 1.0 / l2.sqrt();
+                n[0] *= inv_len;
+                n[1] *= inv_len;
+                n[2] *= inv_len;
+
+                acc[i0][0] += n[0];
+                acc[i0][1] += n[1];
+                acc[i0][2] += n[2];
+
+                acc[i1][0] += n[0];
+                acc[i1][1] += n[1];
+                acc[i1][2] += n[2];
+
+                acc[i2][0] += n[0];
+                acc[i2][1] += n[1];
+                acc[i2][2] += n[2];
+            }
+        }
+
+        for a in &mut acc {
+            let l2 = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
+            if l2 > 0.0 {
+                let inv_len = 1.0 / l2.sqrt();
+                a[0] *= inv_len;
+                a[1] *= inv_len;
+                a[2] *= inv_len;
+            } else {
+                a[2] = 1.0;
+            }
+            a[3] = 0.0;
+        }
+
+        acc
     }
 
     pub fn rect() -> Self {

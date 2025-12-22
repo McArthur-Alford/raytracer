@@ -26,6 +26,8 @@ import camera;
 [[vk::binding(1,6)]] RWStructuredBuffer<uint> qd_lambertian;
 [[vk::binding(2,6)]] RWStructuredBuffer<QueueHeader> qh_metallic;
 [[vk::binding(3,6)]] RWStructuredBuffer<uint> qd_metallic;
+[[vk::binding(4,6)]] RWStructuredBuffer<QueueHeader> qh_dielectric;
+[[vk::binding(5,6)]] RWStructuredBuffer<uint> qd_dielectric;
 
 [shader("compute")]
 [numthreads(1,1,1)]
@@ -34,6 +36,7 @@ void logicStart(uint3 threadId : SV_DispatchThreadID) {
     queueReset(qh_new_ray);
     queueReset(qh_lambertian);
     queueReset(qh_metallic);
+    queueReset(qh_dielectric);
     return;
   }
 }
@@ -94,7 +97,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 16;
+    path.bounces = 256;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
@@ -131,12 +134,13 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
         // output[threadId.x + threadId.y * dims.x] = pack_rgb(float3(0.0,0.0,255.0));
         break;
       case 1:
-        // Lambertian
         queuePush(qh_lambertian, qd_lambertian, threadId.x);
         break;
       case 2:
-        // Lambertian
-        queuePush(qh_metallic, qd_metallic, threadId.x );
+        queuePush(qh_metallic, qd_metallic, threadId.x);
+        break;
+      case 3:
+        queuePush(qh_dielectric, qd_dielectric, threadId.x);
         break;
       default:
         break;
