@@ -3,10 +3,38 @@ module lambertian;
 import camera;
 import path;
 import queue;
+import light;
 import random;
+import bvh;
+import material;
 
-public struct LambertianData {
+public struct LambertianData : IMaterial {
   float4 albedo;
+
+  public float eval_brdf(float3 wi, float3 wo, float3 n) {
+    return select(dot(wo, n) >= 0.0, 1.0 / 6.2831, 0.0);
+  }
+
+  public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state) {
+    RandomResult r = Random(random_state);
+    RandomResult r2 = Random(r.state);
+    RandomResult r3 = Random(r2.state);
+    random_state = r2.state;
+
+    float3 scatter = n + normalize(1.0 - 2.0 * float3(r.value, r2.value, r3.value));
+    wi = select(length(scatter) < 1e-2, n, scatter) - wo;
+    return true;
+  }
+
+  public bool colour(out float4 colour) {
+    colour = albedo;
+    return true;
+  }
+
+  public bool emit(out float4 colour) {
+    colour = float4(0.0);
+    return false;
+  }
 };
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -21,6 +49,14 @@ public struct LambertianData {
 
 [[vk::binding(0,3)]] StructuredBuffer<LambertianData> lb_data;
 
+[[vk::binding(0,4)]] StructuredBuffer<uint> light_samples;
+
+[[vk::binding(0,5)]] StructuredBuffer<BVHNode> blas_nodes;
+[[vk::binding(1,5)]] StructuredBuffer<float3> tri_positions;
+[[vk::binding(2,5)]] StructuredBuffer<uint3> tri_faces;
+[[vk::binding(3,5)]] StructuredBuffer<float3> tri_normals;
+[[vk::binding(4,5)]] StructuredBuffer<uint> blas_roots;
+
 [shader("compute")]
 [numthreads(64,1,1)]
 void computeMain(uint3 threadId : SV_DispatchThreadID) {
@@ -29,25 +65,27 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
     return;
   }
 
-  let path = &paths[index];
-  let hit = &hits[index];
-  let mat_data = lb_data[hit.mat_data];
-
-  hit.hit.norm = -sign(dot(hit.hit.norm, path.ray.dir)) * hit.hit.norm;
+  process_material(
+    index,
   
-  path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
-  // path.ray.pos = hit.hit.pos;
-  path.throughput *= mat_data.albedo.xyz;
+    paths,
+    random_states,
+    hits,
 
-  RandomResult result = Random(random_states[index]);
-  RandomResult result2 = Random(result.state);
-  RandomResult result3 = Random(result2.state);
-  random_states[index] = result2.state;
-  float3 scatter = hit.hit.norm + normalize(1.0 - 2.0 * float3(result.value, result2.value, result3.value));
-  scatter = select(length(scatter) < 1e-2, hit.hit.norm, scatter);
+    qh_material,
+    qd_material,
 
-  // Actual lambertian scattering:
-  path.ray.dir = normalize(path.ray.dir + scatter);
-  
-  queuePush(qh_extension, qd_extension, index);
+    qh_extension,
+    qd_extension,
+
+    lb_data,
+
+    light_samples,
+
+    blas_nodes,
+    tri_positions,
+    tri_faces,
+    tri_normals,
+    blas_roots,
+  );
 }

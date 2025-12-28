@@ -148,6 +148,8 @@ pub trait BVH {
                 bounds: Default::default(),
                 left: l,
                 right: r,
+                start: node.start,
+                end: node.end,
                 ..Default::default()
             }
         };

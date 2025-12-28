@@ -69,6 +69,7 @@ pub struct Scene {
     pub metallic_data: Vec<MetallicData>,
     pub dielectric_data: Vec<DielectricData>,
     pub emissive_data: Vec<EmissiveData>,
+    pub light_samples: Vec<u32>, // All blas indexes which are for light sampling
     pub instances: Instances,
     pub blas_data: BLASData,
     pub tlas_data: TLASData,
@@ -220,6 +221,8 @@ impl SceneBuilder {
             self.meshes.push(mesh::Mesh::cube());
         }
 
+        let light_samples = self.instances.iter().map(|i| i.mesh).collect_vec();
+
         let instances = Instances::new(device, self.instances);
 
         // Make the BLAS & TLAS
@@ -241,6 +244,7 @@ impl SceneBuilder {
             instances,
             blas_data,
             tlas_data,
+            light_samples,
         }
     }
 }
@@ -276,7 +280,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     // Make material data for lambertian:
     // Basic gray;
     let base_colour = scene_builder.add_material(LambertianData {
-        albedo: [0.9, 0.9, 0.9, 0.0],
+        albedo: [0.95, 0.95, 0.95, 0.0],
     }) as u32;
 
     // Fun colours:
@@ -311,7 +315,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     }) as u32;
 
     let light = scene_builder.add_material(EmissiveData {
-        albedo: [0.5, 0.8, 0.9, 1.0],
+        albedo: [1.5, 1.8, 1.9, 1.0],
     }) as u32;
 
     let half = 5.0;

@@ -5,20 +5,12 @@ import ray;
 import queue;
 import hit;
 import math;
+import light;
+import bvh;
 
 struct AABB {
   float4 lb;
   float4 ub;
-}
-
-struct BVHNode {
-  float4 lb;
-  float4 ub;
-  uint left;
-  uint right;
-  uint is_leaf;
-  uint start;
-  uint end;
 }
 
 struct Sphere {

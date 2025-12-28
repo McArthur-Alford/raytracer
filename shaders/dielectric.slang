@@ -4,6 +4,7 @@ import camera;
 import path;
 import queue;
 import random;
+import bvh;
 
 public struct DielectricData {
   float4 albedo;
@@ -22,6 +23,13 @@ public struct DielectricData {
 
 [[vk::binding(0,3)]] StructuredBuffer<DielectricData> lb_data;
 
+[[vk::binding(0,4)]] StructuredBuffer<uint> light_samples;
+
+[[vk::binding(0,5)]] StructuredBuffer<BVHNode> blas_nodes;
+[[vk::binding(1,5)]] StructuredBuffer<float3> tri_positions;
+[[vk::binding(2,5)]] StructuredBuffer<uint3> tri_faces;
+[[vk::binding(3,5)]] StructuredBuffer<float3> tri_normals;
+[[vk::binding(4,5)]] StructuredBuffer<uint> blas_roots;
 
 float reflectance(float cosine, float ref_idx) {
   var r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
@@ -54,9 +62,8 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
   let mat_data = lb_data[hit.mat_data];
 
   let front_face = dot(hit.hit.norm, path.ray.dir) < 0;
-  if (!front_face) {
-    hit.hit.norm *= -1;
-  }
+  let ffs = front_face ? 1 : -1;
+  hit.hit.norm *= ffs;
 
   let ir = mat_data.ir;
   let refraction_ratio = front_face ? (1.0 / ir) : (ir);

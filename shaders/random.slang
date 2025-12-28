@@ -29,3 +29,8 @@ public RandomResult Random(uint4 state) {
   return result;
 }
 
+public float random_gen(RWStructuredBuffer<uint4> rs, uint idx) {
+  RandomResult r1 = Random(rs[idx]);
+  rs[idx] = r1.state;
+  return r1.value;
+}

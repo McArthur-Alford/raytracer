@@ -1,6 +1,6 @@
 use wgpu::{include_spirv, util::DeviceExt};
 
-use crate::{material::Material, path, queue};
+use crate::{blas, material::Material, path, queue};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
@@ -17,6 +17,8 @@ impl LambertianPhase {
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         lambertian_data: Vec<LambertianData>,
+        blas_data: &blas::BLASData,
+        light_sample_bindgroup_layout: &wgpu::BindGroupLayout,
         label: Option<&str>,
     ) -> Self {
         let compute_shader = device
@@ -61,6 +63,8 @@ impl LambertianPhase {
             data_buffer,
             data_bindgroup,
             data_bindgroup_layout,
+            blas_data,
+            light_sample_bindgroup_layout,
             label,
         );
 
@@ -73,8 +77,16 @@ impl LambertianPhase {
         path_buffer: &path::Paths,
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
+        blas_data: &blas::BLASData,
+        light_sample_bindgroup: &wgpu::BindGroup,
     ) -> wgpu::CommandBuffer {
-        self.0
-            .render(device, path_buffer, material_queue, extension_queue)
+        self.0.render(
+            device,
+            path_buffer,
+            material_queue,
+            extension_queue,
+            blas_data,
+            light_sample_bindgroup,
+        )
     }
 }

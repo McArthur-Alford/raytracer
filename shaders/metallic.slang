@@ -4,6 +4,7 @@ import camera;
 import path;
 import queue;
 import random;
+import bvh;
 
 public struct MetallicData {
   float4 albedo;
@@ -22,6 +23,14 @@ public struct MetallicData {
 
 [[vk::binding(0,3)]] StructuredBuffer<MetallicData> lb_data;
 
+[[vk::binding(0,4)]] StructuredBuffer<uint> light_samples;
+
+[[vk::binding(0,5)]] StructuredBuffer<BVHNode> blas_nodes;
+[[vk::binding(1,5)]] StructuredBuffer<float3> tri_positions;
+[[vk::binding(2,5)]] StructuredBuffer<uint3> tri_faces;
+[[vk::binding(3,5)]] StructuredBuffer<float3> tri_normals;
+[[vk::binding(4,5)]] StructuredBuffer<uint> blas_roots;
+
 [shader("compute")]
 [numthreads(64,1,1)]
 void computeMain(uint3 threadId : SV_DispatchThreadID) {
@@ -34,14 +43,15 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
   let hit = &hits[index];
   let mat_data = lb_data[hit.mat_data];
 
-  hit.hit.norm = -sign(dot(hit.hit.norm, path.ray.dir)) * hit.hit.norm;
+  let front_face = dot(hit.hit.norm, path.ray.dir) < 0;
+  if (!front_face) {
+    hit.hit.norm *= -1;
+  }
 
   path.ray.pos = hit.hit.pos + hit.hit.norm * 0.005;
-  // path.ray.pos = hit.hit.pos;
   path.throughput *= mat_data.albedo.xyz;
 
   let reflected = path.ray.dir - 2.0 * dot(path.ray.dir, hit.hit.norm) * hit.hit.norm;
-
   RandomResult result = Random(random_states[index]);
   RandomResult result2 = Random(result.state);
   RandomResult result3 = Random(result2.state);

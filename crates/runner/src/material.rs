@@ -2,6 +2,7 @@ use wesl::include_wesl;
 use wgpu::{ShaderModule, include_spirv, util::DeviceExt};
 
 use crate::{
+    blas,
     camera::{self},
     path, queue,
 };
@@ -24,6 +25,8 @@ impl Material {
         data_buffer: wgpu::Buffer,
         data_bindgroup: wgpu::BindGroup,
         data_bindgroup_layout: wgpu::BindGroupLayout,
+        blas_data: &blas::BLASData,
+        light_sample_bindgroup_layout: &wgpu::BindGroupLayout,
         label: Option<&str>,
     ) -> Self {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -36,6 +39,8 @@ impl Material {
                 &material_queue.bind_group_layout,
                 &extension_queue.bind_group_layout,
                 &data_bindgroup_layout,
+                &light_sample_bindgroup_layout,
+                &blas_data.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -64,6 +69,8 @@ impl Material {
         path_buffer: &path::Paths,
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
+        blas_data: &blas::BLASData,
+        light_sample_bindgroup: &wgpu::BindGroup,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some(&format!(
@@ -78,6 +85,8 @@ impl Material {
         compute_pass.set_bind_group(1, &material_queue.bind_group, &[]);
         compute_pass.set_bind_group(2, &extension_queue.bind_group, &[]);
         compute_pass.set_bind_group(3, &self.data_bindgroup, &[]);
+        compute_pass.set_bind_group(4, light_sample_bindgroup, &[]);
+        compute_pass.set_bind_group(5, &blas_data.bindgroup, &[]);
         compute_pass.dispatch_workgroups(material_queue.size.div_ceil(64), 1, 1);
 
         drop(compute_pass);

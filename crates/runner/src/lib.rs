@@ -26,7 +26,7 @@ use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 use glam::Vec3;
 use itertools::Itertools;
 use rand::Rng;
-use wgpu::util::DeviceExt;
+use wgpu::{BufferUsages, util::DeviceExt};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalPosition, PhysicalPosition},
@@ -78,6 +78,9 @@ pub struct State {
     keys_pressed: HashSet<KeyCode>,
     emissive_queue: queue::Queue,
     emissive_phase: emissive::EmissivePhase,
+    // TODO: Abstract:
+    light_sample_bindgroup: wgpu::BindGroup,
+    light_sample_bindgroup_layout: wgpu::BindGroupLayout,
 }
 
 impl State {
@@ -143,7 +146,7 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
-        let dims = Dims::new(&device, (512, 512), 512 * 512);
+        let dims = Dims::new(&device, (1024, 1024), 1024 * 1024);
         let mut sb = SceneBuilder::new();
         boxes_scene(&mut sb);
 
@@ -155,7 +158,39 @@ impl State {
             instances,
             blas_data,
             tlas_data,
+            light_samples,
         } = sb.build(&device);
+
+        // TODO: Abstract this away pls
+        let light_sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Light Sample Buff"),
+            contents: bytemuck::cast_slice(&light_samples),
+            usage: BufferUsages::STORAGE,
+        });
+
+        let light_sample_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Light Sample Bindgroup Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let light_sample_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Light Sample Bindgroup"),
+            layout: &light_sample_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: light_sample_buffer.as_entire_binding(),
+            }],
+        });
 
         // Make a bunch of queues:
         let paths = path::Paths::new(&device, &dims);
@@ -200,6 +235,8 @@ impl State {
             &lambertian_queue,
             &extension_queue,
             lambertian_data,
+            &blas_data,
+            &light_sample_bindgroup_layout,
             Some("Lambertian"),
         );
         let metallic_phase = metallic::MetallicPhase::new(
@@ -208,6 +245,8 @@ impl State {
             &metallic_queue,
             &extension_queue,
             metallic_data,
+            &blas_data,
+            &light_sample_bindgroup_layout,
             Some("Metallic"),
         );
         let dielectric_phase = dielectric::DielectricPhase::new(
@@ -216,6 +255,8 @@ impl State {
             &dielectric_queue,
             &extension_queue,
             dielectric_data,
+            &blas_data,
+            &light_sample_bindgroup_layout,
             Some("Dielectric"),
         );
         let emissive_phase = emissive::EmissivePhase::new(
@@ -224,6 +265,8 @@ impl State {
             &emissive_queue,
             &extension_queue,
             emissive_data,
+            &blas_data,
+            &light_sample_bindgroup_layout,
             Some("Emissive"),
         );
 
@@ -284,6 +327,8 @@ impl State {
             blas_data,
             tlas_data,
             emissive_queue,
+            light_sample_bindgroup,
+            light_sample_bindgroup_layout,
         })
     }
 
@@ -389,24 +434,32 @@ impl State {
             &self.paths,
             &self.lambertian_queue,
             &self.extension_queue,
+            &self.blas_data,
+            &self.light_sample_bindgroup,
         );
         let metallic_commands = self.metallic_phase.render(
             &self.device,
             &self.paths,
             &self.metallic_queue,
             &self.extension_queue,
+            &self.blas_data,
+            &self.light_sample_bindgroup,
         );
         let dielectric_commands = self.dielectric_phase.render(
             &self.device,
             &self.paths,
             &self.dielectric_queue,
             &self.extension_queue,
+            &self.blas_data,
+            &self.light_sample_bindgroup,
         );
         let emissive_commands = self.emissive_phase.render(
             &self.device,
             &self.paths,
             &self.emissive_queue,
             &self.extension_queue,
+            &self.blas_data,
+            &self.light_sample_bindgroup,
         );
         let extension_commands = self.extension_phase.render(
             &self.device,
