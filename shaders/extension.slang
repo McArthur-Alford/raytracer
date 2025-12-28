@@ -7,11 +7,7 @@ import hit;
 import math;
 import light;
 import bvh;
-
-struct AABB {
-  float4 lb;
-  float4 ub;
-}
+import tlas;
 
 struct Sphere {
   float3 position;
@@ -40,24 +36,7 @@ struct Sphere {
     }
     h.pos = ray.pos + t * ray.dir;
     h.norm = (h.pos - position) / radius;
-    // Norms from the inside are very broken... must investigate
-    // if (l2 < r2) {
-    //   h.norm *= -1;
-    // }
   }
-}
-
-struct Transform {
-  float4 scale;
-  float4 rotation;
-  float4 translation;
-}
-
-struct Instance {
-  Transform transform;
-  uint mesh;
-  uint material;
-  uint material_data;
 }
 
 void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h) {
@@ -93,11 +72,9 @@ void rayTriIntersect(uint3 face, Ray ray, out float2 uv, out float t, out Hit h)
   }
   t = f * dot(e2, r);
 
-  // h.norm = normalize(cross(e1, e2));
   h.prim = face;
   uv = float2(u,v);
   h.norm = n0 * (1.0 - u - v) + n1 * u + n2 * v;
-  // h.pos = ray.pos + t * ray.dir;
   h.pos = p0 + e1 * u + e2 * v;
 
   return;

@@ -26,7 +26,7 @@ use std::{collections::HashSet, f32::consts::PI, sync::Arc};
 use glam::Vec3;
 use itertools::Itertools;
 use rand::Rng;
-use wgpu::{BufferUsages, util::DeviceExt};
+use wgpu::{BufferUsages, include_spirv, util::DeviceExt};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalPosition, PhysicalPosition},
@@ -58,16 +58,12 @@ pub struct State {
     paths: path::Paths,
     samples: sample::Samples,
     new_ray_queue: queue::Queue,
-    lambertian_queue: queue::Queue,
-    metallic_queue: queue::Queue,
-    dielectric_queue: queue::Queue,
     extension_queue: queue::Queue,
+    material_queues: Vec<queue::Queue>,
+    material_phases: Vec<material::Material>,
     logic_phase: logic::LogicPhase,
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
-    lambertian_phase: lambertian::LambertianPhase,
-    metallic_phase: metallic::MetallicPhase,
-    dielectric_phase: dielectric::DielectricPhase,
     extension_phase: extension::ExtensionPhase,
     instances: Instances,
     blas_data: blas::BLASData,
@@ -76,8 +72,6 @@ pub struct State {
     window: Arc<Window>,
     dims: Dims,
     keys_pressed: HashSet<KeyCode>,
-    emissive_queue: queue::Queue,
-    emissive_phase: emissive::EmissivePhase,
     // TODO: Abstract:
     light_sample_bindgroup: wgpu::BindGroup,
     light_sample_bindgroup_layout: wgpu::BindGroupLayout,
@@ -196,10 +190,13 @@ impl State {
         let paths = path::Paths::new(&device, &dims);
         let new_ray_queue = queue::Queue::new(&device, dims.threads, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.threads, Some("ExtensionPhase"));
-        let lambertian_queue = queue::Queue::new(&device, dims.threads, Some("LambertianQueue"));
-        let metallic_queue = queue::Queue::new(&device, dims.threads, Some("MetallicQueue"));
-        let dielectric_queue = queue::Queue::new(&device, dims.threads, Some("DielectricQueue"));
-        let emissive_queue = queue::Queue::new(&device, dims.threads, Some("EmissiveQueue"));
+        let material_queues = vec![
+            queue::Queue::new(&device, dims.threads, Some("LambertianQueue")),
+            queue::Queue::new(&device, dims.threads, Some("MetallicQueue")),
+            queue::Queue::new(&device, dims.threads, Some("DielectricQueue")),
+            queue::Queue::new(&device, dims.threads, Some("EmissiveQueue")),
+        ];
+
         let mut camera = camera::Camera::new(&device, Some("MainCamera"));
 
         // Sample States
@@ -212,12 +209,7 @@ impl State {
             &samples,
             &camera,
             &new_ray_queue,
-            &[
-                &lambertian_queue,
-                &metallic_queue,
-                &dielectric_queue,
-                &emissive_queue,
-            ],
+            material_queues.as_slice(),
             &dims,
         );
         let new_ray_phase = new_ray::NewRayPhase::new(
@@ -229,46 +221,69 @@ impl State {
             &camera,
             &dims,
         );
-        let lambertian_phase = lambertian::LambertianPhase::new(
-            &device,
-            &paths,
-            &lambertian_queue,
-            &extension_queue,
-            lambertian_data,
-            &blas_data,
-            &light_sample_bindgroup_layout,
-            Some("Lambertian"),
-        );
-        let metallic_phase = metallic::MetallicPhase::new(
-            &device,
-            &paths,
-            &metallic_queue,
-            &extension_queue,
-            metallic_data,
-            &blas_data,
-            &light_sample_bindgroup_layout,
-            Some("Metallic"),
-        );
-        let dielectric_phase = dielectric::DielectricPhase::new(
-            &device,
-            &paths,
-            &dielectric_queue,
-            &extension_queue,
-            dielectric_data,
-            &blas_data,
-            &light_sample_bindgroup_layout,
-            Some("Dielectric"),
-        );
-        let emissive_phase = emissive::EmissivePhase::new(
-            &device,
-            &paths,
-            &emissive_queue,
-            &extension_queue,
-            emissive_data,
-            &blas_data,
-            &light_sample_bindgroup_layout,
-            Some("Emissive"),
-        );
+
+        let material_phases = vec![
+            material::Material::new(
+                &device,
+                device.create_shader_module(include_spirv!(concat!(
+                    env!("OUT_DIR"),
+                    "/lambertian.spv"
+                ))),
+                &paths,
+                &material_queues[0],
+                &extension_queue,
+                &lambertian_data,
+                &blas_data,
+                &tlas_data,
+                &light_sample_bindgroup_layout,
+                Some("lambertian"),
+            ),
+            material::Material::new(
+                &device,
+                device.create_shader_module(include_spirv!(concat!(
+                    env!("OUT_DIR"),
+                    "/metallic.spv"
+                ))),
+                &paths,
+                &material_queues[1],
+                &extension_queue,
+                &metallic_data,
+                &blas_data,
+                &tlas_data,
+                &light_sample_bindgroup_layout,
+                Some("metallic"),
+            ),
+            material::Material::new(
+                &device,
+                device.create_shader_module(include_spirv!(concat!(
+                    env!("OUT_DIR"),
+                    "/dielectric.spv"
+                ))),
+                &paths,
+                &material_queues[2],
+                &extension_queue,
+                &dielectric_data,
+                &blas_data,
+                &tlas_data,
+                &light_sample_bindgroup_layout,
+                Some("dielectric"),
+            ),
+            material::Material::new(
+                &device,
+                device.create_shader_module(include_spirv!(concat!(
+                    env!("OUT_DIR"),
+                    "/emissive.spv"
+                ))),
+                &paths,
+                &material_queues[3],
+                &extension_queue,
+                &emissive_data,
+                &blas_data,
+                &tlas_data,
+                &light_sample_bindgroup_layout,
+                Some("emissive"),
+            ),
+        ];
 
         let mut rng = rand::rng();
         let mut spheres = (0..0)
@@ -309,16 +324,11 @@ impl State {
             render_phase,
             samples,
             new_ray_phase,
-            lambertian_phase,
-            metallic_phase,
-            dielectric_phase,
             extension_phase,
-            emissive_phase,
+            material_queues,
+            material_phases,
             paths,
             new_ray_queue,
-            lambertian_queue,
-            metallic_queue,
-            dielectric_queue,
             extension_queue,
             instances,
             camera,
@@ -326,7 +336,6 @@ impl State {
             keys_pressed: HashSet::new(),
             blas_data,
             tlas_data,
-            emissive_queue,
             light_sample_bindgroup,
             light_sample_bindgroup_layout,
         })
@@ -412,15 +421,17 @@ impl State {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let logic_commands = self.logic_phase.render(
+        let mut commands = Vec::new();
+
+        commands.push(self.logic_phase.render(
             &self.device,
             &self.paths,
             &self.samples,
             &self.camera,
             &self.new_ray_queue,
             &self.dims,
-        );
-        let new_ray_commands = self.new_ray_phase.render(
+        ));
+        commands.push(self.new_ray_phase.render(
             &self.device,
             &self.paths,
             &self.samples,
@@ -428,62 +439,35 @@ impl State {
             &self.extension_queue,
             &self.camera,
             &self.dims,
-        );
-        let lambertian_commands = self.lambertian_phase.render(
-            &self.device,
-            &self.paths,
-            &self.lambertian_queue,
-            &self.extension_queue,
-            &self.blas_data,
-            &self.light_sample_bindgroup,
-        );
-        let metallic_commands = self.metallic_phase.render(
-            &self.device,
-            &self.paths,
-            &self.metallic_queue,
-            &self.extension_queue,
-            &self.blas_data,
-            &self.light_sample_bindgroup,
-        );
-        let dielectric_commands = self.dielectric_phase.render(
-            &self.device,
-            &self.paths,
-            &self.dielectric_queue,
-            &self.extension_queue,
-            &self.blas_data,
-            &self.light_sample_bindgroup,
-        );
-        let emissive_commands = self.emissive_phase.render(
-            &self.device,
-            &self.paths,
-            &self.emissive_queue,
-            &self.extension_queue,
-            &self.blas_data,
-            &self.light_sample_bindgroup,
-        );
-        let extension_commands = self.extension_phase.render(
+        ));
+
+        for (i, mat_phase) in self.material_phases.iter().enumerate() {
+            commands.push(mat_phase.render(
+                &self.device,
+                &self.paths,
+                &self.material_queues[i],
+                &self.extension_queue,
+                &self.blas_data,
+                &self.tlas_data,
+                &self.light_sample_bindgroup,
+            ));
+        }
+
+        commands.push(self.extension_phase.render(
             &self.device,
             &self.paths,
             &self.extension_queue,
             &self.blas_data,
             &self.tlas_data,
             &self.instances,
+        ));
+
+        commands.push(
+            self.render_phase
+                .render(&self.device, &self.logic_phase.output(), &view),
         );
 
-        let renderer_commands =
-            self.render_phase
-                .render(&self.device, &self.logic_phase.output(), &view);
-
-        self.queue.submit([
-            logic_commands,
-            new_ray_commands,
-            metallic_commands,
-            lambertian_commands,
-            dielectric_commands,
-            emissive_commands,
-            extension_commands,
-            renderer_commands,
-        ]);
+        self.queue.submit(commands);
 
         output.present();
 

@@ -6,6 +6,7 @@ import queue;
 import light;
 import random;
 import bvh;
+import tlas;
 import material;
 
 public struct LambertianData : IMaterial {
@@ -47,7 +48,7 @@ public struct LambertianData : IMaterial {
 [[vk::binding(0,2)]] RWStructuredBuffer<QueueHeader> qh_extension;
 [[vk::binding(1,2)]] RWStructuredBuffer<uint> qd_extension;
 
-[[vk::binding(0,3)]] StructuredBuffer<LambertianData> lb_data;
+[[vk::binding(0,3)]] StructuredBuffer<LambertianData> mat_datas;
 
 [[vk::binding(0,4)]] StructuredBuffer<uint> light_samples;
 
@@ -56,6 +57,10 @@ public struct LambertianData : IMaterial {
 [[vk::binding(2,5)]] StructuredBuffer<uint3> tri_faces;
 [[vk::binding(3,5)]] StructuredBuffer<float3> tri_normals;
 [[vk::binding(4,5)]] StructuredBuffer<uint> blas_roots;
+
+[[vk::binding(0,6)]] StructuredBuffer<BVHNode> tlas_nodes;
+[[vk::binding(1,6)]] StructuredBuffer<uint> tlas_instance_ids;
+[[vk::binding(2,6)]] StructuredBuffer<AABB> tlas_aabbs;
 
 [shader("compute")]
 [numthreads(64,1,1)]
@@ -78,7 +83,7 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
     qh_extension,
     qd_extension,
 
-    lb_data,
+    mat_datas,
 
     light_samples,
 
@@ -87,5 +92,9 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
     tri_faces,
     tri_normals,
     blas_roots,
+
+    tlas_nodes,
+    tlas_instance_ids,
+    tlas_aabbs
   );
 }

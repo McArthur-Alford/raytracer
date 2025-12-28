@@ -21,7 +21,7 @@ impl LogicPhase {
         samples: &sample::Samples,
         camera: &camera::Camera,
         new_ray_queue: &queue::Queue,
-        material_queues: &[&queue::Queue],
+        material_queues: &[queue::Queue],
         dims: &Dims,
     ) -> Self {
         let compute_shader =

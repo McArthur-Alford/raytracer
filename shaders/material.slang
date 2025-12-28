@@ -5,6 +5,7 @@ import queue;
 import bvh;
 import light;
 import random;
+import tlas;
 
 public interface IMaterial {
   public float eval_brdf(float3 wi, float3 wo, float3 n);
@@ -35,6 +36,10 @@ public void process_material<T>(
   StructuredBuffer<uint3> tri_faces,
   StructuredBuffer<float3> tri_normals,
   StructuredBuffer<uint> blas_roots,
+
+  StructuredBuffer<BVHNode> tlas_nodes,
+  StructuredBuffer<uint> tlas_instance_ids,
+  StructuredBuffer<AABB> tlas_aabbs,
 )
   where T: IMaterial
 {

@@ -4,9 +4,10 @@ use wgpu::{ShaderModule, include_spirv, util::DeviceExt};
 use crate::{
     blas,
     camera::{self},
-    path, queue,
+    path, queue, tlas,
 };
 
+#[derive(Clone)]
 pub struct Material {
     pub label: Option<String>,
     pub data_buffer: wgpu::Buffer,
@@ -16,19 +17,51 @@ pub struct Material {
 }
 
 impl Material {
-    pub fn new(
+    pub fn new<T>(
         device: &wgpu::Device,
         shader: ShaderModule,
         path_buffer: &path::Paths,
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
-        data_buffer: wgpu::Buffer,
-        data_bindgroup: wgpu::BindGroup,
-        data_bindgroup_layout: wgpu::BindGroupLayout,
+        data: &Vec<T>,
         blas_data: &blas::BLASData,
+        tlas_data: &tlas::TLASData,
         light_sample_bindgroup_layout: &wgpu::BindGroupLayout,
         label: Option<&str>,
-    ) -> Self {
+    ) -> Self
+    where
+        T: bytemuck::Pod + bytemuck::Zeroable,
+    {
+        let data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label,
+            contents: bytemuck::cast_slice(&data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        let data_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let data_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label,
+            layout: &data_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: data_buffer.as_entire_binding(),
+            }],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some(&format!(
                 "{}Phase Pipeline Layout",
@@ -41,6 +74,7 @@ impl Material {
                 &data_bindgroup_layout,
                 &light_sample_bindgroup_layout,
                 &blas_data.bindgroup_layout,
+                &tlas_data.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -70,6 +104,7 @@ impl Material {
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
         blas_data: &blas::BLASData,
+        tlas_data: &tlas::TLASData,
         light_sample_bindgroup: &wgpu::BindGroup,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -87,6 +122,7 @@ impl Material {
         compute_pass.set_bind_group(3, &self.data_bindgroup, &[]);
         compute_pass.set_bind_group(4, light_sample_bindgroup, &[]);
         compute_pass.set_bind_group(5, &blas_data.bindgroup, &[]);
+        compute_pass.set_bind_group(6, &tlas_data.bindgroup, &[]);
         compute_pass.dispatch_workgroups(material_queue.size.div_ceil(64), 1, 1);
 
         drop(compute_pass);
