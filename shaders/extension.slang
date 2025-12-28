@@ -169,12 +169,8 @@ void rayTLASIntersect(const Ray ray, uint3 prim, inout float2 uv, inout float t,
       Instance instance = instances[tlas_instance_ids[p]];
       uint bid = blas_roots[instance.mesh];
 
-      float4x4 m = mul(translate(instance.transform.translation.xyz),
-                   mul(rotate(instance.transform.rotation.xyz),
-                       scale(instance.transform.scale.xyz)));
-      float4x4 mi = mul(scale(1.0 / instance.transform.scale.xyz),
-                    mul(transpose(rotate(instance.transform.rotation.xyz)),
-                        translate(-instance.transform.translation.xyz)));
+      float4x4 m = instance.transform.matrix();
+      float4x4 mi = instance.transform.matrix_inverse();
 
       Ray r = ray;
       r.dir = normalize(r.dir);
@@ -275,7 +271,7 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
   } else {
     // White Sky:
-    paths[index].rad += paths[index].throughput * float3(1.0);
+    paths[index].rad += paths[index].throughput * float3(0.0);
     paths[index].terminated = 1;
   }
 

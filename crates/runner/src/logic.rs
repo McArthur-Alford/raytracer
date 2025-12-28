@@ -1,6 +1,4 @@
 use itertools::Itertools;
-use tracing::info;
-use wesl::include_wesl;
 use wgpu::{BindGroupLayoutEntry, include_spirv, util::DeviceExt};
 
 use crate::{camera, dims::Dims, path, queue, sample};

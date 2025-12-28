@@ -1,6 +1,6 @@
 module math;
 
-public float4x4 scale(float3 factor) {
+public float4x4 scale_matrix(float3 factor) {
   return float4x4(
     float4(factor.x,0.0,0.0,0.0),
     float4(0.0,factor.y,0.0,0.0),
@@ -9,7 +9,7 @@ public float4x4 scale(float3 factor) {
   );
 }
 
-public float4x4 rotate(float3 factor) {
+public float4x4 rotate_matrix(float3 factor) {
   let x = factor.x;
   let y = factor.y;
   let z = factor.z;
@@ -37,7 +37,7 @@ public float4x4 rotate(float3 factor) {
   );
 }
 
-public float4x4 translate(float3 factor) {
+public float4x4 translate_matrix(float3 factor) {
   return float4x4(
     float4(1.0,0.0,0.0,factor.x),
     float4(0.0,1.0,0.0,factor.y),

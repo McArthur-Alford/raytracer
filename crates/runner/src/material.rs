@@ -4,7 +4,7 @@ use wgpu::{ShaderModule, include_spirv, util::DeviceExt};
 use crate::{
     blas,
     camera::{self},
-    path, queue, tlas,
+    instance, path, queue, tlas,
 };
 
 #[derive(Clone)]
@@ -23,6 +23,7 @@ impl Material {
         path_buffer: &path::Paths,
         material_queue: &queue::Queue,
         extension_queue: &queue::Queue,
+        instances: &instance::Instances,
         data: &Vec<T>,
         blas_data: &blas::BLASData,
         tlas_data: &tlas::TLASData,
@@ -75,6 +76,7 @@ impl Material {
                 &light_sample_bindgroup_layout,
                 &blas_data.bindgroup_layout,
                 &tlas_data.bindgroup_layout,
+                &instances.bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -105,6 +107,7 @@ impl Material {
         extension_queue: &queue::Queue,
         blas_data: &blas::BLASData,
         tlas_data: &tlas::TLASData,
+        instances: &instance::Instances,
         light_sample_bindgroup: &wgpu::BindGroup,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -123,6 +126,7 @@ impl Material {
         compute_pass.set_bind_group(4, light_sample_bindgroup, &[]);
         compute_pass.set_bind_group(5, &blas_data.bindgroup, &[]);
         compute_pass.set_bind_group(6, &tlas_data.bindgroup, &[]);
+        compute_pass.set_bind_group(7, &instances.bindgroup, &[]);
         compute_pass.dispatch_workgroups(material_queue.size.div_ceil(64), 1, 1);
 
         drop(compute_pass);

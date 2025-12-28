@@ -62,6 +62,8 @@ public struct LambertianData : IMaterial {
 [[vk::binding(1,6)]] StructuredBuffer<uint> tlas_instance_ids;
 [[vk::binding(2,6)]] StructuredBuffer<AABB> tlas_aabbs;
 
+[[vk::binding(0,7)]] StructuredBuffer<Instance> instances;
+
 [shader("compute")]
 [numthreads(64,1,1)]
 void computeMain(uint3 threadId : SV_DispatchThreadID) {
@@ -95,6 +97,8 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
 
     tlas_nodes,
     tlas_instance_ids,
-    tlas_aabbs
+    tlas_aabbs,
+
+    instances,
   );
 }
