@@ -290,21 +290,24 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     // Make material data for lambertian:
     // Basic gray;
     let base_colour = scene_builder.add_material(LambertianData {
-        albedo: [0.95, 0.95, 0.95, 0.0],
+        albedo: [0.73, 0.73, 0.73, 0.0],
     }) as u32;
 
     // Fun colours:
     let red = scene_builder.add_material(LambertianData {
-        albedo: [0.4, 0.4, 0.9, 0.0],
+        albedo: [0.65, 0.05, 0.05, 0.0],
     }) as u32;
+
     let green = scene_builder.add_material(LambertianData {
-        albedo: [0.4, 0.9, 0.4, 0.0],
+        albedo: [0.12, 0.45, 0.15, 0.0],
     }) as u32;
+
     let blue = scene_builder.add_material(LambertianData {
-        albedo: [0.9, 0.4, 0.4, 0.0],
+        albedo: [0.05, 0.10, 0.60, 0.0],
     }) as u32;
+
     let purple = scene_builder.add_material(LambertianData {
-        albedo: [0.8, 0.05, 0.67, 0.0],
+        albedo: [0.35, 0.08, 0.45, 0.0],
     }) as u32;
 
     let gold = scene_builder.add_material(MetallicData {
@@ -314,7 +317,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     }) as u32;
     let mirror = scene_builder.add_material(MetallicData {
         albedo: [1.0, 1.0, 1.0, 0.0],
-        fuzz: 0.1,
+        fuzz: 0.0,
         ..Default::default()
     }) as u32;
 
@@ -324,8 +327,11 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
         ..Default::default()
     }) as u32;
 
+    // let light = scene_builder.add_material(EmissiveData {
+    //     albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
+    // }) as u32;
     let light = scene_builder.add_material(EmissiveData {
-        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
+        albedo: [1.0, 1.0, 1.0, 1.0].map(|i| i * 100.0),
     }) as u32;
 
     let half = 5.0;
@@ -452,7 +458,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
         },
         Instance {
             transform: instance::Transform {
-                scale: Vec3::new(2.5, 3.0, 2.5),
+                scale: Vec3::new(2.5, 2.99, 2.5),
                 rotation: Vec3::new(0.0, PI * -0.1, 0.0),
                 translation: Vec3::new(0.4, -half + 1.5, half - 1.8),
                 ..Default::default()

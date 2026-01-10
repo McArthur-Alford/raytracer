@@ -13,13 +13,13 @@ public struct LambertianData : IMaterial {
   float4 albedo;
 
   public float4 brdf(float3 wi, float3 wo, float3 n) {
-    let oob = (dot(n, -wi) <= 0.0 || dot(n, wo) <= 0.0);
+    let oob = (dot(n, wi) <= 0.0 || dot(n, wo) <= 0.0);
     return select(oob, 0.0, albedo / 3.1415);
   }
 
   public float pdf(float3 wi, float3 wo, float3 n) {
-    let cosTheta = dot(n, -wi);
-    return select(cosTheta > 0.0, cosTheta / 6.2831, 0.0);
+    let cosTheta = dot(n, wi);
+    return select(cosTheta > 0.0, 1.0 / 6.2831, 0.0);
   }
 
   public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state) {
@@ -29,7 +29,7 @@ public struct LambertianData : IMaterial {
     random_state = r2.state;
 
     float3 scatter = n + normalize(1.0 - 2.0 * float3(r.value, r2.value, r3.value));
-    wi = -select(length(scatter) < 1e-6, n, scatter);
+    wi = normalize(select(length(scatter) < 1e-6, n, scatter));
     return true;
   }
 

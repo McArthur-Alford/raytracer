@@ -130,7 +130,7 @@ void rayBLASIntersect(const Ray ray, uint3 prim, const uint bvh_node, in float t
 
       rayTriIntersect(face, ray, uv2, t2, h2);
 
-      if (t2 >= 0.0 && t2 < t && (!h2.prim.equals(prim))) {
+      if (t2 >= 0.0 && t2 < t && (!h2.prim.equals(prim) || true)) {
         t = t2;
         h = h2;
         uv = uv2;
@@ -265,13 +265,25 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     hits[index].mat_data,
   );
 
+  let front_face = dot(h.norm, path.ray.dir) < 0;
+  let ffs = front_face ? 1 : -1;
+  h.front_face = front_face;
+  h.norm *= ffs;
+
   if (t < float.maxValue) {
     hits[index].hit = h;
     paths[index].bounces -= 1;
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
+    if (paths[index].terminated == 1) {
+      paths[index].rad = float3(1.0,0.0,0.0);
+    } else {
+      // Queue up a shadow extension too yay
+      
+    }
   } else {
-    // White Sky:
-    paths[index].rad = paths[index].throughput * float3(0.8);
+    // Skybox hit:
+    paths[index].rad = paths[index].throughput * float3(0.0);
+    paths[index].rad = float3(1.0,0.0,0.0);
     paths[index].terminated = 1;
   }
 

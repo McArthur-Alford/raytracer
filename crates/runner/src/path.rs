@@ -13,6 +13,8 @@ pub struct Hit {
     pub _pad1: u32, // pad vec3 to 16 bytes
     pub primitive: [u32; 3],
     pub _pad2: u32, // pad vec3 to 16 bytes
+    pub front_face: u32,
+    pub _pad3: [u32; 3], // Pad struct to 16 bytes
 }
 
 #[repr(C)]

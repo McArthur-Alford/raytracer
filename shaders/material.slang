@@ -56,18 +56,13 @@ public void process_material<T>(
     path.terminated = 1;
     return;
   }
-
-  // Front face calculation + backface norm flipping:
-  let front_face = dot(hit.hit.norm, path.ray.dir) < 0;
-  let ffs = front_face ? 1 : -1;
-  hit.hit.norm *= ffs;
   
   float3 scatter;
   float weight = 1.0;
-  const float light_prob = 0.05;
+  // const float light_prob = 0.01;
 
   // Direct Light Sampling occurs with light_prob probability:
-  if (!sample_light(random_states[index], light_prob)) {
+  // if (!sample_light(random_states[index], light_prob)) {
     // No light sample, do scattering as usual:
     if (mat_data.scatter(
       scatter,
@@ -75,48 +70,48 @@ public void process_material<T>(
       hit.hit.norm,
       random_states[index]
     )) {
-      scatter = normalize(-scatter);
-
       // I omit weight = weight * brdf / brdf
       // as sampled = actual, so it would always equal 1.0
-      weight /= max(1.0 - max(light_prob,0.0), 1e-8);
+      // weight /= max(1.0 - max(light_prob,0.0), 1e-10);
     } else {
       // We don't scatter, indicating the ray can just stop here.
       path.terminated = 1;
     }
-  } else {
-    // Light sample, start by sampling a random point on a light:
-    float3 sample_pos;
-    float sample_prob;
-    get_light_sample(
-      random_states[index],
-      sample_pos,
-      sample_prob,
-      light_samples,
-      blas_roots,
-      blas_nodes,
-      tlas_nodes,
-      tri_positions,
-      instances,
-    );
+  // } else {
+  //   // Light sample, start by sampling a random point on a light:
+  //   float3 sample_pos;
+  //   float sample_prob;
+  //   get_light_sample(
+  //     random_states[index],
+  //     sample_pos,
+  //     sample_prob,
+  //     light_samples,
+  //     blas_roots,
+  //     blas_nodes,
+  //     tlas_nodes,
+  //     tri_positions,
+  //     instances,
+  //   );
 
-    if (sample_prob <= 0.0 || path.bounces < 2) {
-      // Impossible sample, if we dont reject it we add infinity to the colour
-      // which is bad, obviously:
-      path.terminated = 1;
-    } else {
-      // Then we "scatter" towards that sampled point:
-      scatter = normalize(sample_pos - hit.hit.pos);
+  //   if (sample_prob <= 0.0 || path.bounces < 2) {
+  //     // Impossible sample, if we dont reject it we add infinity to the colour
+  //     // which is bad, obviously:
+  //     // path.sampled = 0;
+  //     path.terminated = 1;
+  //   } else {
+  //     // Then we "scatter" towards that sampled point:
+  //     scatter = normalize(sample_pos - hit.hit.pos);
 
-      // Otherwise, multiply weight by (actual_prob / sample_prob)
-      // to do proper importance sampling:
-      weight /= max(light_prob * sample_prob, 1e-8);
-      weight *= mat_data.pdf(-scatter, -path.ray.dir, hit.hit.norm);
-      path.bounces = 2;
-    }
-  }
+  //     // Otherwise, multiply weight by (actual_prob / sample_prob)
+  //     // to do proper importance sampling:
+  //     weight /= max(light_prob * sample_prob, 1e-10);
+  //     weight *= mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
+  //     path.bounces = 2;
+  //   }
+  // }
 
-  path.throughput *= mat_data.brdf(-scatter, -path.ray.dir, hit.hit.norm).xyz;
+  path.throughput *= mat_data.brdf(scatter, -path.ray.dir, hit.hit.norm).xyz;
+  path.throughput *= dot(scatter, hit.hit.norm);
   path.throughput *= weight;
 
   // if (weight <= 1e-8) {
@@ -131,10 +126,10 @@ public void process_material<T>(
   //   path.ray.pos = hit.hit.pos - hit.hit.norm * 1e-3;
   // } else {
     // Scattered *off* the surface, so shift with norm
-    // path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
+    path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
   // }
   path.ray.dir = scatter;
-  path.ray.pos = hit.hit.pos;
+  // path.ray.pos = hit.hit.pos;
   
   // If not terminated, push for extension:
   if (path.terminated == 0) {
