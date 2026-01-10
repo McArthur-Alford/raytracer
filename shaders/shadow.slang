@@ -109,20 +109,30 @@ void shadowMain(uint3 threadId : SV_DispatchThreadID) {
     a,
     b
   );
-  // t = length(shadow_hit.pos - orig);
+  // t = length(shadow_hit.pos - sample_pos);
 
   ShadowData sd = ShadowData(float3(0),float3(0),0);
-  if (shadow_t > t + 2e-1) {
-    // Unless floating point precision becomes an issue
-    // (it shouldn't as shadow_t wouldn't be updated)
-    // This indicates we hit something else and failed
-    // Thus we simply set the contribution of the light to 0
-    // and the material will handle the rest trivially
-  } else {
-    // Light was hit yay
-    // What info do we need to store for access by materials?
-    // a) Contribution from the light
-    // b) Shadow scatter dir for bsdfing
+  // if (shadow_t > t + 2e-1) {
+  //   // Unless floating point precision becomes an issue
+  //   // (it shouldn't as shadow_t wouldn't be updated)
+  //   // This indicates we hit something else and failed
+  //   // Thus we simply set the contribution of the light to 0
+  //   // and the material will handle the rest trivially
+  // } else {
+  //   // Light was hit yay
+  //   // What info do we need to store for access by materials?
+  //   // a) Contribution from the light
+  //   // b) Shadow scatter dir for bsdfing
+  //   Instance instance = instances[instance_id];
+  //   EmissiveData mat_data = em_data[instance.material_data];
+  //   float4 colour;
+  //   mat_data.emit(colour);
+  //   sd.rad = colour.xyz;
+  //   sd.prob = sample_prob;
+  //   sd.dir = scatter;
+  // }
+
+  if (length(shadow_hit.pos - sample_pos) < 1e-0) {
     Instance instance = instances[instance_id];
     EmissiveData mat_data = em_data[instance.material_data];
     float4 colour;
@@ -131,11 +141,6 @@ void shadowMain(uint3 threadId : SV_DispatchThreadID) {
     sd.prob = sample_prob;
     sd.dir = scatter;
   }
-  // if (shadow_t > t + 1e0) {
-  //   sd.rad = float3(shadow_t-t,0,0);
-  // } else {
-  //   sd.rad = float3(0,100.0,0);
-  // }
 
   shadow_data[index] = sd;
 }

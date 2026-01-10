@@ -53,7 +53,7 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
 
   float4 colour;
   mat_data.emit(colour);
-  // path.rad += colour.rgb * path.throughput;
+  path.rad += colour.rgb * path.throughput;
 
   path.terminated = 1;
 }

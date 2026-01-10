@@ -190,7 +190,6 @@ public void rayTLASIntersect(const RaycastBuffers rb, const Ray ray, uint3 prim,
       float4x4 mi = instance.transform.matrix_inverse();
 
       Ray r = ray;
-      r.dir = normalize(r.dir);
       r.pos = mul(mi, float4(r.pos, 1.0)).xyz;
       r.dir = mul(mi, float4(r.dir, 0.0)).xyz;
 

@@ -133,19 +133,33 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     let out_idx = out_pos.x + out_pos.y * dims.x;
 
     float3 rad = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1024 * samples);
-    rad *= exp2(-4.0);
+    rad *= 1;
+    // if (length(path.throughput.x) < 0.00000000000000001) {
+    //   rad = float3(1,0,0);
+    // } else {
+    //   rad = float3(0,0,0);
+    // }
+    // if (rad.y > rad.x && rad.y > rad.z) {
+    //   rad.y = 254;
+    //   rad.x = 0;
+    //   rad.z = 0;
+    // }
+    rad *= exp2(-5.0);
+    // rad = normalize(rad);
 
     // float3 max_comp = max3(rad.r, rad.g, rad.b);
     // rad = max(rad, 0.01 * max_comp);
     
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
-    rad = saturate((rad*(a*rad+b))/(rad*(c*rad+d)+e));
+    // float a = 2.51f;
+    // float b = 0.03f;
+    // float c = 2.43f;
+    // float d = 0.59f;
+    // float e = 0.14f;
+    // rad = saturate((rad*(a*rad+b))/(rad*(c*rad+d)+e));
 
     float3 rgb = (rad < 0.0031308) ? rad * 12.92 : pow(rad, 1.0 / 2.4) * 1.055 - 0.55;
+    rgb = saturate(rgb);
+    // float3 rgb = rad;
     output[out_idx] = pack_rgb(rgb);
 
     // Re-mark the path to be sampled:

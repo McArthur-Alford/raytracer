@@ -102,7 +102,6 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
   } else {
     // Skybox hit:
     paths[index].rad = paths[index].throughput * float3(0.0);
-    paths[index].rad = float3(1.0,0.0,0.0);
     paths[index].terminated = 1;
   }
 

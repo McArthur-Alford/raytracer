@@ -111,11 +111,12 @@ public void process_material<T>(
   //   }
   // }
 
-  ShadowData sd = shadow_data[index];
-  path.rad += sd.rad * path.throughput;
-
   path.throughput *= mat_data.brdf(scatter, -path.ray.dir, hit.hit.norm).xyz;
-  path.throughput *= dot(scatter, hit.hit.norm);
+
+  ShadowData sd = shadow_data[index];
+  path.rad += sd.rad * path.throughput * 0.05;
+  
+  // path.throughput *= dot(scatter, hit.hit.norm);
   path.throughput *= weight;
 
   // if (weight <= 1e-8) {
