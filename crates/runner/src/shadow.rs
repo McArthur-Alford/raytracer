@@ -3,7 +3,9 @@ use wgpu::{include_spirv, util::DeviceExt};
 
 use crate::{
     blas::{self, BLASData},
+    emissive,
     instance::{Instance, Instances},
+    material,
     mesh::Meshes,
     path, queue, tlas,
 };
@@ -15,51 +17,53 @@ pub struct Sphere {
     pub radius: f32,
 }
 
-pub struct ExtensionPhase {
+pub struct ShadowPhase {
     pipeline: wgpu::ComputePipeline,
     reset_pipeline: wgpu::ComputePipeline,
 }
 
-impl ExtensionPhase {
+impl ShadowPhase {
     pub fn new(
         device: &wgpu::Device,
         paths: &path::Paths,
-        extension_queue: &queue::Queue,
         shadow_queue: &queue::Queue,
         blas_data: &blas::BLASData,
         tlas_data: &tlas::TLASData,
+        light_sample_bind_group_layout: &wgpu::BindGroupLayout,
+        material: &material::Material,
         instances: &Instances,
     ) -> Self {
         let compute_shader =
-            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/extension.spv")));
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/shadow.spv")));
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("ExtensionPhase Pipleline Layout"),
+            label: Some("ShadowPhase Pipleline Layout"),
             bind_group_layouts: &[
                 &paths.path_bind_group_layout,
-                &extension_queue.bind_group_layout,
                 &shadow_queue.bind_group_layout,
+                &light_sample_bind_group_layout,
                 &blas_data.bindgroup_layout,
                 &instances.bindgroup_layout,
                 &tlas_data.bindgroup_layout,
+                &material.data_bindgroup_layout,
             ],
             push_constant_ranges: &[],
         });
 
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("ExtensionPhase Pipeline"),
+            label: Some("ShadowPhase Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("extensionMain"),
+            entry_point: Some("shadowMain"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });
 
         let reset_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("ExtensionPhase reset Pipeline"),
+            label: Some("ShadowPhase reset Pipeline"),
             layout: Some(&pipeline_layout),
             module: &compute_shader,
-            entry_point: Some("extensionReset"),
+            entry_point: Some("shadowReset"),
             compilation_options: Default::default(),
             cache: Default::default(),
         });
@@ -74,10 +78,11 @@ impl ExtensionPhase {
         &self,
         device: &wgpu::Device,
         path_buffer: &path::Paths,
-        extension_queue: &queue::Queue,
         shadow_queue: &queue::Queue,
         blas_data: &blas::BLASData,
         tlas_data: &tlas::TLASData,
+        light_sample_bind_group: &wgpu::BindGroup,
+        material: &material::Material,
         instances: &Instances,
     ) -> wgpu::CommandBuffer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -87,21 +92,23 @@ impl ExtensionPhase {
         let mut compute_pass = encoder.begin_compute_pass(&Default::default());
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
-        compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
-        compute_pass.set_bind_group(2, &shadow_queue.bind_group, &[]);
+        compute_pass.set_bind_group(1, &shadow_queue.bind_group, &[]);
+        compute_pass.set_bind_group(2, light_sample_bind_group, &[]);
         compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
         compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
         compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
-        compute_pass.dispatch_workgroups(extension_queue.size.div_ceil(64), 1, 1);
+        compute_pass.set_bind_group(6, &material.data_bindgroup, &[]);
+        compute_pass.dispatch_workgroups(shadow_queue.size.div_ceil(64), 1, 1);
 
         // Reset extension queue after done:
         compute_pass.set_pipeline(&self.reset_pipeline);
         compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
-        compute_pass.set_bind_group(1, &extension_queue.bind_group, &[]);
-        compute_pass.set_bind_group(2, &shadow_queue.bind_group, &[]);
+        compute_pass.set_bind_group(1, &shadow_queue.bind_group, &[]);
+        compute_pass.set_bind_group(2, light_sample_bind_group, &[]);
         compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
         compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
         compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
+        compute_pass.set_bind_group(6, &material.data_bindgroup, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
 
         drop(compute_pass);

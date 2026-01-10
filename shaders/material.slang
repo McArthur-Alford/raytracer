@@ -20,6 +20,7 @@ public void process_material<T>(
   RWStructuredBuffer<Path> paths,
   RWStructuredBuffer<uint4> random_states,
   RWStructuredBuffer<HitData> hits,
+  RWStructuredBuffer<ShadowData> shadow_data,
 
   RWStructuredBuffer<QueueHeader> qh_material,
   RWStructuredBuffer<uint> qd_material,
@@ -52,7 +53,7 @@ public void process_material<T>(
   // Emission + Albedo:
   float4 emission;
   if (mat_data.emit(emission)) {
-    path.rad = emission.xyz * path.throughput;
+    path.rad += emission.xyz * path.throughput;
     path.terminated = 1;
     return;
   }
@@ -109,6 +110,9 @@ public void process_material<T>(
   //     path.bounces = 2;
   //   }
   // }
+
+  ShadowData sd = shadow_data[index];
+  path.rad += sd.rad * path.throughput;
 
   path.throughput *= mat_data.brdf(scatter, -path.ray.dir, hit.hit.norm).xyz;
   path.throughput *= dot(scatter, hit.hit.norm);

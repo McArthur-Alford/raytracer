@@ -17,6 +17,7 @@ mod queue;
 mod render;
 mod sample;
 mod scenes;
+mod shadow;
 mod texture;
 mod tlas;
 
@@ -65,6 +66,7 @@ pub struct State {
     render_phase: render::RenderPhase,
     new_ray_phase: new_ray::NewRayPhase,
     extension_phase: extension::ExtensionPhase,
+    shadow_phase: shadow::ShadowPhase,
     instances: Instances,
     blas_data: blas::BLASData,
     tlas_data: TLASData,
@@ -75,6 +77,7 @@ pub struct State {
     // TODO: Abstract:
     light_sample_bindgroup: wgpu::BindGroup,
     light_sample_bindgroup_layout: wgpu::BindGroupLayout,
+    shadow_queue: queue::Queue,
 }
 
 impl State {
@@ -190,6 +193,7 @@ impl State {
         let paths = path::Paths::new(&device, &dims);
         let new_ray_queue = queue::Queue::new(&device, dims.threads, Some("NewRayPhase"));
         let extension_queue = queue::Queue::new(&device, dims.threads, Some("ExtensionPhase"));
+        let shadow_queue = queue::Queue::new(&device, dims.threads, Some("ShadowPhase"));
         let material_queues = vec![
             queue::Queue::new(&device, dims.threads, Some("LambertianQueue")),
             queue::Queue::new(&device, dims.threads, Some("MetallicQueue")),
@@ -311,9 +315,20 @@ impl State {
             &device,
             &paths,
             &extension_queue,
+            &shadow_queue,
             &blas_data,
             &tlas_data,
-            spheres.as_slice(),
+            &instances,
+        );
+
+        let shadow_phase = shadow::ShadowPhase::new(
+            &device,
+            &paths,
+            &shadow_queue,
+            &blas_data,
+            &tlas_data,
+            &light_sample_bindgroup_layout,
+            &material_phases[3],
             &instances,
         );
 
@@ -342,6 +357,8 @@ impl State {
             tlas_data,
             light_sample_bindgroup,
             light_sample_bindgroup_layout,
+            shadow_queue,
+            shadow_phase,
         })
     }
 
@@ -463,8 +480,20 @@ impl State {
                 &self.device,
                 &self.paths,
                 &self.extension_queue,
+                &self.shadow_queue,
                 &self.blas_data,
                 &self.tlas_data,
+                &self.instances,
+            ));
+
+            commands.push(self.shadow_phase.render(
+                &self.device,
+                &self.paths,
+                &self.shadow_queue,
+                &self.blas_data,
+                &self.tlas_data,
+                &self.light_sample_bindgroup,
+                &self.material_phases[3],
                 &self.instances,
             ));
 

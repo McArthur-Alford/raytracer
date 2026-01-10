@@ -64,10 +64,22 @@ pub struct RandomState {
     pub random_state: [u32; 4],
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct ShadowData {
+    pub dir: [f32; 3],
+    pub _pad1: u32,
+    pub rad: [f32; 3],
+    pub _pad2: u32,
+    pub prob: f32,
+    pub _pad3: [u32; 3],
+}
+
 pub struct Paths {
     pub path_buffer: wgpu::Buffer,
     pub random_state_buffer: wgpu::Buffer,
     // pub sample_state_buffer: wgpu::Buffer,
+    pub shadow_data_buffer: wgpu::Buffer,
     pub hit_data_buffer: wgpu::Buffer,
     pub path_bind_group_layout: wgpu::BindGroupLayout,
     pub path_bind_group: wgpu::BindGroup,
@@ -108,6 +120,13 @@ impl Paths {
             mapped_at_creation: false,
         });
 
+        let shadow_data_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("shadow_data Buffer"),
+            usage: wgpu::BufferUsages::STORAGE,
+            size: std::mem::size_of::<ShadowData>() as u64 * dims.threads as u64,
+            mapped_at_creation: false,
+        });
+
         let path_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Path Bind Group Layout"),
@@ -142,6 +161,16 @@ impl Paths {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -161,6 +190,10 @@ impl Paths {
                     binding: 2,
                     resource: hit_data_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: shadow_data_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -169,6 +202,7 @@ impl Paths {
             random_state_buffer,
             // sample_state_buffer,
             hit_data_buffer,
+            shadow_data_buffer,
             path_bind_group_layout,
             path_bind_group,
         }

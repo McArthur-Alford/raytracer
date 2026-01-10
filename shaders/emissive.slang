@@ -4,9 +4,27 @@ import camera;
 import path;
 import queue;
 import random;
+import material;
 
-public struct EmissiveData {
+public struct EmissiveData : IMaterial {
   float4 albedo;
+
+  public float4 brdf(float3 wi, float3 wo, float3 n) {
+    return 0.0;
+  }
+
+  public float pdf(float3 wi, float3 wo, float3 n) {
+    return 0.0;
+  }
+
+  public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state) {
+    return false;
+  }
+
+  public bool emit(out float4 colour) {
+    colour = albedo;
+    return true;
+  }
 };
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
@@ -33,7 +51,9 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
   let hit = &hits[index];
   let mat_data = em_data[hit.mat_data];
 
-  // path.throughput *= mat_data.albedo.xyz;
-  path.rad = mat_data.albedo.xyz * path.throughput;
-  path.terminated = true;
+  float4 colour;
+  mat_data.emit(colour);
+  // path.rad += colour.rgb * path.throughput;
+
+  path.terminated = 1;
 }

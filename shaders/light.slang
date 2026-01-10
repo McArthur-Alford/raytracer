@@ -34,6 +34,7 @@ public bool get_light_sample(
   inout uint4 random_state,
   out float3 sample_pos,
   out float sample_prob,
+  out uint instance,
   StructuredBuffer<uint> light_samples,
   StructuredBuffer<uint> blas_roots,
   StructuredBuffer<BVHNode> blas_nodes,

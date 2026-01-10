@@ -5,18 +5,21 @@ import ray;
 import queue;
 import hit;
 import math;
+import random;
 import light;
 import bvh;
 import tlas;
 import raycast;
 
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
+[[vk::binding(1,0)]] RWStructuredBuffer<uint4> random_states;
 [[vk::binding(2,0)]] RWStructuredBuffer<HitData> hits;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_extension;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_extension;
 
-[[vk::binding(0,2)]] StructuredBuffer<Sphere> primitives;
+[[vk::binding(0,2)]] RWStructuredBuffer<QueueHeader> qh_shadow;
+[[vk::binding(1,2)]] RWStructuredBuffer<uint> qd_shadow;
 
 [[vk::binding(0,3)]] StructuredBuffer<BVHNode> blas_nodes;
 [[vk::binding(1,3)]] StructuredBuffer<float3> tri_positions;
@@ -66,24 +69,8 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
   float t = float.maxValue;
   Hit h;
 
-  // Sphere intersects, temporary TODO: replace with poly based spheres or something
-  for (uint pid = 0; pid < primitives.getCount(); pid++) {
-    float t2;
-    Hit h2;
-    Sphere s = primitives[pid];
-    s.raySphereIntersect(path.ray, t2, h2);
-
-    if (t2 >= 0 && t2 < t) {
-      hits[index].mat = 1;
-      hits[index].mat_data = 0;
-      t = t2;
-      h = h2;
-    }
-  }
-
   h.prim = uint3(-1);
   let prim = hits[index].hit.prim;
-
  
   // BLAS Intersects
   float2 uv;
@@ -108,10 +95,9 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     paths[index].bounces -= 1;
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
     if (paths[index].terminated == 1) {
-      paths[index].rad = float3(1.0,0.0,0.0);
+      // paths[index].rad = float3(1.0,0.0,0.0);
     } else {
-      // Queue up a shadow extension too yay
-      
+      queuePush(qh_shadow, qd_shadow, index);
     }
   } else {
     // Skybox hit:

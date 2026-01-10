@@ -22,3 +22,9 @@ public struct HitData {
   public uint mat;
   public uint mat_data;
 }
+
+public struct ShadowData {
+  public float3 dir;
+  public float3 rad;
+  public float prob;
+}

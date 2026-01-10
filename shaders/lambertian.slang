@@ -42,6 +42,7 @@ public struct LambertianData : IMaterial {
 [[vk::binding(0,0)]] RWStructuredBuffer<Path> paths;
 [[vk::binding(1,0)]] RWStructuredBuffer<uint4> random_states;
 [[vk::binding(2,0)]] RWStructuredBuffer<HitData> hits;
+[[vk::binding(3,0)]] RWStructuredBuffer<ShadowData> shadow_data;
 
 [[vk::binding(0,1)]] RWStructuredBuffer<QueueHeader> qh_material;
 [[vk::binding(1,1)]] RWStructuredBuffer<uint> qd_material;
@@ -79,6 +80,7 @@ void computeMain(uint3 threadId : SV_DispatchThreadID) {
     paths,
     random_states,
     hits,
+    shadow_data,
 
     qh_material,
     qd_material,
