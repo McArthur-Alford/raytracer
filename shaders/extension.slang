@@ -94,14 +94,11 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     hits[index].hit = h;
     paths[index].bounces -= 1;
     paths[index].terminated = paths[index].terminated | paths[index].bounces == 0;
-    if (paths[index].terminated == 1) {
-      // paths[index].rad = float3(1.0,0.0,0.0);
-    } else {
+    if (paths[index].terminated == 0) {
       queuePush(qh_shadow, qd_shadow, index);
     }
   } else {
     // Skybox hit:
-    paths[index].rad = paths[index].throughput * float3(0.0);
     paths[index].terminated = 1;
   }
 

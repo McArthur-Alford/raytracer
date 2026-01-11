@@ -116,7 +116,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
     }
 
     // Generate the path starting conditions:
-    path.bounces = 256;
+    path.bounces = 16;
     path.throughput = float3(1.0);
     path.rad = float3(0.0);
     path.sampled = 1;
@@ -149,7 +149,7 @@ void logicMain(uint3 threadId : SV_DispatchThreadID) {
 
     float3 rad = float3(sample_mean.Load3(path.sample_id * sizeof(uint4))) / float(1024 * samples);
     
-    rad *= exp2(-9.0); // TODO: compute this dynamically :)
+    rad *= exp2(-6.1); // TODO: compute this dynamically :)
     float3 rgb = acesToneMap(rad);
     output[out_idx] = pack_rgb(rgb);
 

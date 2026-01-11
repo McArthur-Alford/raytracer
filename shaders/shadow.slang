@@ -90,56 +90,44 @@ void shadowMain(uint3 threadId : SV_DispatchThreadID) {
   float shadow_t = length(sample_pos - orig);
   Ray shadow_ray = Ray(orig, scatter);
 
-  float t = float.maxValue;
-  Hit shadow_hit;
-
-  shadow_hit.prim = uint3(-1);
-  let prim = hit.hit.prim;
- 
-  // BLAS Intersects
-  float2 uv;
-  uint a,b; // lmao this was breaking everything...
-  rayTLASIntersect(
-    rb,
-    shadow_ray,
-    prim,
-    uv,
-    t,
-    shadow_hit,
-    a,
-    b
-  );
-  // t = length(shadow_hit.pos - sample_pos);
-
   ShadowData sd = ShadowData(float3(0),float3(0),0);
-  // if (shadow_t > t + 2e-1) {
-  //   // Unless floating point precision becomes an issue
-  //   // (it shouldn't as shadow_t wouldn't be updated)
-  //   // This indicates we hit something else and failed
-  //   // Thus we simply set the contribution of the light to 0
-  //   // and the material will handle the rest trivially
-  // } else {
-  //   // Light was hit yay
-  //   // What info do we need to store for access by materials?
-  //   // a) Contribution from the light
-  //   // b) Shadow scatter dir for bsdfing
-  //   Instance instance = instances[instance_id];
-  //   EmissiveData mat_data = em_data[instance.material_data];
-  //   float4 colour;
-  //   mat_data.emit(colour);
-  //   sd.rad = colour.xyz;
-  //   sd.prob = sample_prob;
-  //   sd.dir = scatter;
-  // }
 
-  if (length(shadow_hit.pos - sample_pos) < 1e-0) {
-    Instance instance = instances[instance_id];
-    EmissiveData mat_data = em_data[instance.material_data];
-    float4 colour;
-    mat_data.emit(colour);
-    sd.rad = colour.xyz;
-    sd.prob = sample_prob;
-    sd.dir = scatter;
+  if (dot(shadow_ray.dir, hit.hit.norm) > 0) {
+    float t = shadow_t;
+    Hit shadow_hit;
+
+    shadow_hit.prim = uint3(-1);
+    let prim = hit.hit.prim;
+ 
+    // BLAS Intersects
+    float2 uv;
+    uint a,b; // lmao this was breaking everything...
+    rayTLASIntersect(
+      rb,
+      shadow_ray,
+      prim,
+      uv,
+      t,
+      shadow_hit,
+      a,
+      b
+    );
+
+    if (length(shadow_hit.pos - sample_pos) < 1e-0) {
+      Instance instance = instances[instance_id];
+      EmissiveData mat_data = em_data[instance.material_data];
+      float4 colour;
+      mat_data.emit(colour);
+      sd.rad = colour.xyz;
+      sd.prob = sample_prob;
+
+      // must convert to solid angle
+      float3 omega = float3(shadow_ray.dir);
+      float3 r = shadow_hit.pos - orig;
+      sd.prob = sd.prob * dot(r,r) / abs(dot(shadow_hit.norm, -omega));
+
+      sd.dir = scatter;
+    }
   }
 
   shadow_data[index] = sd;

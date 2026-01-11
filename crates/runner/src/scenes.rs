@@ -331,7 +331,7 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
     //     albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
     // }) as u32;
     let light = scene_builder.add_material(EmissiveData {
-        albedo: [1.0, 1.0, 1.0, 1.0].map(|i| i * 100.0),
+        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i * 800.0),
     }) as u32;
 
     let half = 5.0;
@@ -354,18 +354,18 @@ pub fn boxes_scene(scene_builder: &mut SceneBuilder) {
             ..Default::default()
         },
         // Front wall:
-        Instance {
-            transform: instance::Transform {
-                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-                rotation: Vec3::ZERO,
-                translation: Vec3::new(0.0, 0.0, 0.0),
-                ..Default::default()
-            },
-            mesh: quad_id,
-            material: 1,
-            material_idx: 0,
-            ..Default::default()
-        },
+        // Instance {
+        //     transform: instance::Transform {
+        //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+        //         rotation: Vec3::ZERO,
+        //         translation: Vec3::new(0.0, 0.0, 0.0),
+        //         ..Default::default()
+        //     },
+        //     mesh: quad_id,
+        //     material: 1,
+        //     material_idx: 0,
+        //     ..Default::default()
+        // },
         // Floor:
         Instance {
             transform: instance::Transform {
@@ -606,254 +606,216 @@ pub(crate) fn grid_scene(
     )
 }
 
-pub(crate) fn cornell_scene(
-    device: &wgpu::Device,
-) -> (
-    Vec<LambertianData>,
-    Vec<MetallicData>,
-    Vec<DielectricData>,
-    Vec<EmissiveData>,
-    Instances,
-    BLASData,
-    TLASData,
-) {
-    // Load models:
-    let mut load_options = tobj::GPU_LOAD_OPTIONS;
-    load_options.single_index = false;
-
-    let mut meshes = Vec::new();
-
-    // Suzanne!
-    let (models, materials) = tobj::load_obj("assets/suzanne.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-    // Teapot!
-    let (models, materials) = tobj::load_obj("assets/teapot.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-    // Teapot!
-    let (models, materials) = tobj::load_obj("assets/dragon.obj", &load_options).unwrap();
-    meshes.push(mesh::Mesh::from_model(&models[0].mesh));
-
-    meshes.push(mesh::Mesh::rect());
-    let quad_id = (meshes.len() - 1) as u32;
-
-    meshes.push(mesh::Mesh::cube());
-    let cube_id = (meshes.len() - 1) as u32;
+pub(crate) fn cornell_scene(scene_builder: &mut SceneBuilder) {
+    let suzanne_id = scene_builder.add_obj("assets/suzanne.obj") as u32;
+    let teapot_id = scene_builder.add_obj("assets/teapot.obj") as u32;
+    let dragon_id = scene_builder.add_obj("assets/dragon.obj") as u32;
+    let quad_id = scene_builder.add_mesh(mesh::Mesh::rect(), Some("unit_rect")) as u32;
+    let cube_id = scene_builder.add_mesh(mesh::Mesh::cube(), Some("unit_cube")) as u32;
 
     // Make material data for lambertian:
-    let mut lambertian_data = vec![
-        // Basic gray/white:
-        LambertianData {
-            albedo: [0.9, 0.9, 0.9, 0.0],
-        },
-        // For now, 3 instances, r/g/b each
-        LambertianData {
-            albedo: [0.4, 0.4, 0.9, 0.0],
-        },
-        LambertianData {
-            albedo: [0.4, 0.9, 0.4, 0.0],
-        },
-        LambertianData {
-            albedo: [0.9, 0.4, 0.4, 0.0],
-        },
-    ];
-    for _ in 0..10 {
-        lambertian_data.push(LambertianData {
-            albedo: [0.0, 0.0, 0.0, 0.0].map(|_| random_range(0.0..=1.0)),
-        });
-    }
+    // Basic gray;
+    let base_colour = scene_builder.add_material(LambertianData {
+        albedo: [0.73, 0.73, 0.73, 0.0],
+    }) as u32;
 
-    // Make material data for metallics:
-    let metallic_data = vec![
-        MetallicData {
-            albedo: [0.0, 0.83, 1.0, 0.0],
-            fuzz: 0.2,
-            ..Default::default()
-        },
-        MetallicData {
-            albedo: [1.0, 1.0, 1.0, 0.0],
-            fuzz: 0.0,
-            ..Default::default()
-        },
-    ];
+    // Fun colours:
+    let red = scene_builder.add_material(LambertianData {
+        albedo: [0.65, 0.05, 0.05, 0.0],
+    }) as u32;
 
-    let dielectric_data = vec![DielectricData {
+    let green = scene_builder.add_material(LambertianData {
+        albedo: [0.12, 0.45, 0.15, 0.0],
+    }) as u32;
+
+    let blue = scene_builder.add_material(LambertianData {
+        albedo: [0.05, 0.10, 0.60, 0.0],
+    }) as u32;
+
+    let purple = scene_builder.add_material(LambertianData {
+        albedo: [0.35, 0.08, 0.45, 0.0],
+    }) as u32;
+
+    let gold = scene_builder.add_material(MetallicData {
+        albedo: [0.0, 0.83, 1.0, 0.0],
+        fuzz: 0.2,
+        ..Default::default()
+    }) as u32;
+    let mirror = scene_builder.add_material(MetallicData {
+        albedo: [1.0, 1.0, 1.0, 0.0],
+        fuzz: 0.0,
+        ..Default::default()
+    }) as u32;
+
+    let glass = scene_builder.add_material(DielectricData {
         albedo: [1.0, 1.0, 1.0, 0.0],
         ir: 1.2,
         ..Default::default()
-    }];
+    }) as u32;
 
-    let emissive_data = vec![EmissiveData {
-        albedo: [0.5, 0.8, 0.9, 1.0],
-    }];
-
-    // Instances:
-    let mut instances = vec![];
+    // let light = scene_builder.add_material(EmissiveData {
+    //     albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i + 0.0),
+    // }) as u32;
+    let light = scene_builder.add_material(EmissiveData {
+        albedo: [0.5, 0.8, 0.9, 1.0].map(|i| i * 800.0),
+    }) as u32;
 
     let half = 5.0;
     let depth = 10.0;
     let z_mid = depth * 0.5;
     let offset = Vec3::new(0.0, 0.0, half);
 
-    instances.append(
-        &mut vec![
-            // Back wall:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
-                    rotation: Vec3::ZERO,
-                    translation: Vec3::new(0.0, 0.0, depth),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+    vec![
+        // Back wall:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+                rotation: Vec3::ZERO,
+                translation: Vec3::new(0.0, 0.0, depth),
                 ..Default::default()
             },
-            // Front wall:
-            // Instance {
-            //     transform: instance::Transform {
-            //         scale: Vec3::new(half * 2.0, half * 1.8, 1.0),
-            //         rotation: Vec3::ZERO,
-            //         translation: Vec3::new(0.0, 0.0, 0.0),
-            //         ..Default::default()
-            //     },
-            //     mesh: quad_id,
-            //     material: 1,
-            //     material_idx: 0,
-            //     ..Default::default()
-            // },
-            // Floor:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, depth, 1.0),
-                    rotation: Vec3::new(PI * 0.5, 0.0, 0.0),
-                    translation: Vec3::new(0.0, -half, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: base_colour,
+            ..Default::default()
+        },
+        // Front wall:
+        // Instance {
+        //     transform: instance::Transform {
+        //         scale: Vec3::new(half * 2.0, half * 2.0, 1.0),
+        //         rotation: Vec3::ZERO,
+        //         translation: Vec3::new(0.0, 0.0, 0.0),
+        //         ..Default::default()
+        //     },
+        //     mesh: quad_id,
+        //     material: 1,
+        //     material_idx: 0,
+        //     ..Default::default()
+        // },
+        // Floor:
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, depth, 1.0),
+                rotation: Vec3::new(PI * 0.5, 0.0, 0.0),
+                translation: Vec3::new(0.0, -half, z_mid),
                 ..Default::default()
             },
-            // Ceiling
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(half * 2.0, depth, 1.0),
-                    rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
-                    translation: Vec3::new(0.0, half, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: base_colour,
+            ..Default::default()
+        },
+        // Ceiling
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(half * 2.0, depth, 1.0),
+                rotation: Vec3::new(-PI * 0.5, 0.0, 0.0),
+                translation: Vec3::new(0.0, half, z_mid),
                 ..Default::default()
             },
-            // Ceiling Light
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(6.0, 0.5, 6.0),
-                    rotation: Vec3::new(0.0, 0.0, 0.0),
-                    translation: Vec3::new(0.0, half - 0.25, half),
-                    ..Default::default()
-                },
-                mesh: cube_id,
-                material: 4,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: base_colour,
+            ..Default::default()
+        },
+        // Ceiling Light
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(1.0, 0.5, 6.0),
+                rotation: Vec3::new(0.0, 0.0, 0.0),
+                translation: Vec3::new(-half + 1.0, half - 0.25, half),
                 ..Default::default()
             },
-            // Left wall
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(depth, half * 2.0, 1.0),
-                    rotation: Vec3::new(0.0, -PI * 0.5, 0.0), // +Z -> +X
-                    translation: Vec3::new(-half, 0.0, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 1,
+            mesh: cube_id,
+            material: 4,
+            material_idx: light,
+            ..Default::default()
+        },
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(1.0, 0.5, 6.0),
+                rotation: Vec3::new(0.0, 0.0, 0.0),
+                translation: Vec3::new(half - 1.0, half - 0.25, half),
                 ..Default::default()
             },
-            // Right wall
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::new(depth, half * 2.0, 1.0),
-                    rotation: Vec3::new(0.0, PI * 0.5, 0.0), // +Z -> -X
-                    translation: Vec3::new(half, 0.0, z_mid),
-                    ..Default::default()
-                },
-                mesh: quad_id,
-                material: 1,
-                material_idx: 2,
+            mesh: cube_id,
+            material: 4,
+            material_idx: light,
+            ..Default::default()
+        },
+        // Left wall
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(depth, half * 2.0, 1.0),
+                rotation: Vec3::new(0.0, -PI * 0.5, 0.0), // +Z -> +X
+                translation: Vec3::new(-half, 0.0, z_mid),
                 ..Default::default()
             },
-            // Dragon Centered:
-            // Instance {
-            //     transform: instance::Transform {
-            //         scale: Vec3::splat(6.0),
-            //         rotation: Vec3::new(0.0, PI * 0.25, 0.0),
-            //         translation: Vec3::new(0.0, -half + 1.7, half),
-            //         ..Default::default()
-            //     },
-            //     mesh: 2,
-            //     material: 3,
-            //     material_idx: 0,
-            //     ..Default::default()
-            // },
-            // Suzanne Centered:
-            Instance {
-                transform: instance::Transform {
-                    scale: Vec3::splat(4.0),
-                    rotation: Vec3::new(0.0, 0.0, 0.0),
-                    translation: Vec3::new(0.0, 0.0, half),
-                    ..Default::default()
-                },
-                mesh: 0,
-                material: 3,
-                material_idx: 0,
+            mesh: quad_id,
+            material: 1,
+            material_idx: red,
+            ..Default::default()
+        },
+        // Right wall
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::new(depth, half * 2.0, 1.0),
+                rotation: Vec3::new(0.0, PI * 0.5, 0.0), // +Z -> -X
+                translation: Vec3::new(half, 0.0, z_mid),
                 ..Default::default()
             },
-            // Teapot Centered:
-            // Instance {
-            //     transform: instance::Transform {
-            //         scale: Vec3::splat(4.0),
-            //         rotation: Vec3::new(0.0, 0.0, 0.0),
-            //         translation: Vec3::new(0.0, 0.0, half),
-            //         ..Default::default()
-            //     },
-            //     mesh: 1,
-            //     material: 3,
-            //     material_idx: 0,
-            //     ..Default::default()
-            // },
-        ]
-        .into_iter()
-        .map(|mut i| {
-            i.transform.translation += offset;
-            i
-        })
-        .collect_vec(),
-    );
+            mesh: quad_id,
+            material: 1,
+            material_idx: green,
+            ..Default::default()
+        },
+        // Dragon
+        Instance {
+            transform: instance::Transform {
+                scale: Vec3::splat(6.0),
+                rotation: Vec3::new(0.0, PI * 0.25, 0.0),
+                translation: Vec3::new(0.0, -half + 1.7, half),
+                ..Default::default()
+            },
+            mesh: dragon_id,
+            material: 2,
+            material_idx: gold,
+            ..Default::default()
+        },
+    ]
+    .into_iter()
+    .for_each(|mut i| {
+        i.transform.translation += offset;
+        scene_builder.add_instance(i);
+    });
 
-    let instances = Instances::new(device, instances);
-
-    // Make the BLAS & TLAS
-    let blases = meshes.into_iter().map(|m| blas::BLAS::new(m)).collect_vec();
-    let tlas = tlas::TLAS::new(&blases, &instances.instances);
-
-    let blas_data = blas::BLASData::new(device, blases);
-    let tlas_data = TLASData::new(device, tlas);
-    (
-        lambertian_data,
-        metallic_data,
-        dielectric_data,
-        emissive_data,
-        instances,
-        blas_data,
-        tlas_data,
-    )
+    // // Dragon Centered:
+    // // Suzanne Centered:
+    // Instance {
+    //     transform: instance::Transform {
+    //         scale: Vec3::splat(4.0),
+    //         rotation: Vec3::new(0.0, 0.0, 0.0),
+    //         translation: Vec3::new(0.0, 0.0, half),
+    //         ..Default::default()
+    //     },
+    //     mesh: 0,
+    //     material: 3,
+    //     material_idx: 0,
+    //     ..Default::default()
+    // },
+    // // Teapot Centered:
+    // // Instance {
+    // //     transform: instance::Transform {
+    // //         scale: Vec3::splat(4.0),
+    // //         rotation: Vec3::new(0.0, 0.0, 0.0),
+    // //         translation: Vec3::new(0.0, 0.0, half),
+    // //         ..Default::default()
+    // //     },
+    // //     mesh: 1,
+    // //     material: 3,
+    // //     material_idx: 0,
+    // //     ..Default::default()
+    // // },
 }
 
 pub(crate) fn windows(

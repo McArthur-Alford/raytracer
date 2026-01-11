@@ -102,13 +102,13 @@ impl ShadowPhase {
 
         // Reset extension queue after done:
         compute_pass.set_pipeline(&self.reset_pipeline);
-        compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
+        // compute_pass.set_bind_group(0, &path_buffer.path_bind_group, &[]);
         compute_pass.set_bind_group(1, &shadow_queue.bind_group, &[]);
-        compute_pass.set_bind_group(2, light_sample_bind_group, &[]);
-        compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
-        compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
-        compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
-        compute_pass.set_bind_group(6, &material.data_bindgroup, &[]);
+        // compute_pass.set_bind_group(2, light_sample_bind_group, &[]);
+        // compute_pass.set_bind_group(3, &blas_data.bindgroup, &[]);
+        // compute_pass.set_bind_group(4, &instances.bindgroup, &[]);
+        // compute_pass.set_bind_group(5, &tlas_data.bindgroup, &[]);
+        // compute_pass.set_bind_group(6, &material.data_bindgroup, &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
 
         drop(compute_pass);

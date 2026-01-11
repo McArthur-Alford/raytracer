@@ -14,13 +14,13 @@ public struct LambertianData : IMaterial {
 
   public float4 brdf(float3 wi, float3 wo, float3 n) {
     let oob = (dot(n, wi) <= 0.0 || dot(n, wo) <= 0.0);
-    // return albedo;
     return select(oob, 0.0, albedo / 3.1415);
   }
 
   public float pdf(float3 wi, float3 wo, float3 n) {
-    let cosTheta = dot(n, wi);
-    return select(cosTheta > 0.0, 1.0 / 6.2831, 0.0);
+    // let cosTheta = dot(n, wi);
+    // return select(cosTheta > 0.0, 1.0 / 6.2831, 0.0);
+    return max(0.0, dot(wi, n)) / 3.1415;
   }
 
   public bool scatter(out float3 wi, float3 wo, float3 n, inout uint4 random_state) {
