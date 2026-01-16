@@ -83,7 +83,7 @@ public void process_material<T>(
     RandomResult random_result = Random(random_states[index]);
     random_states[index] = random_result.state;
   
-    if (sd.prob > 0.0 && (random_result.value < c_light || scatter_prob == 0.0)) {
+    if (sd.prob > 0.0 && ((random_result.value < c_light || path.bounces < 200) || scatter_prob == 0.0)) {
       float shadow_weight = c_light * sd.prob;
       shadow_weight /= (
         c_light * sd.prob +
