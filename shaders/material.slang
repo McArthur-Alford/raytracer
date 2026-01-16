@@ -75,15 +75,21 @@ public void process_material<T>(
     float scatter_prob = mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
 
     const float eps = 1e-40;
-    const float c_light = max(0.01, eps);
-    const float c_scatter = max(1.0 - c_light, eps);
+    // const float c_light = max(0.5, eps);
+    // const float c_scatter = max(1.0 - c_light, eps);
+    const float c_light = 1.0;
+    const float c_scatter = 1.0;
+    
     // The max to epsilon shouldnt be necessary but the compiler complains
     // if we have that and one of the probs is 0 or 1.
+    // Its kinda silly... i suspect it is a result of it trying to do the
+    // divide by 0 at compile time for optimisation, because enough
+    // obfuscation of the number at comptime causes it to not produce the error :)
 
     RandomResult random_result = Random(random_states[index]);
     random_states[index] = random_result.state;
   
-    if (sd.prob > 0.0 && ((random_result.value < c_light || path.bounces < 200) || scatter_prob == 0.0)) {
+    if (sd.prob > 0.0) {
       float shadow_weight = c_light * sd.prob;
       shadow_weight /= (
         c_light * sd.prob +
@@ -96,9 +102,10 @@ public void process_material<T>(
       contrib *= shadow_weight;
       contrib /= c_light * sd.prob;
       path.rad += sd.rad * contrib;
-      path.terminated = 1;
-    } else if (scatter_prob > 0.0) {
-      float scatter_weight = (c_scatter) * mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
+    }
+
+    if (scatter_prob > 0.0) {
+      float scatter_weight = c_scatter * scatter_prob;
       scatter_weight /= c_scatter * scatter_prob + c_light * 0.0;
       // FIXME: 0.0 should be prob of scatter in the light distribution...
       // Calculating this seems interesting...
@@ -117,6 +124,7 @@ public void process_material<T>(
       path.throughput *= 0.0;
       path.terminated = 1;
     }
+    // }
 
     path.ray.pos = hit.hit.pos + hit.hit.norm * 1e-3;
     path.ray.dir = scatter;
