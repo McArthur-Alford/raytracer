@@ -75,11 +75,14 @@ public void process_material<T>(
     float scatter_prob = mat_data.pdf(scatter, -path.ray.dir, hit.hit.norm);
 
     const float eps = 1e-40;
+
+    // probs only matter if we use MIS, but im doing MIS+NEE
     // const float c_light = max(0.5, eps);
     // const float c_scatter = max(1.0 - c_light, eps);
     const float c_light = 1.0;
     const float c_scatter = 1.0;
     
+    // NOTE for c_light and c_scatter:
     // The max to epsilon shouldnt be necessary but the compiler complains
     // if we have that and one of the probs is 0 or 1.
     // Its kinda silly... i suspect it is a result of it trying to do the
