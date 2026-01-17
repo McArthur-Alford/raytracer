@@ -528,7 +528,7 @@ impl App {
     }
 }
 
-impl ApplicationHandler<State> for App {
+impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let window_attributes = Window::default_attributes();
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
@@ -539,10 +539,6 @@ impl ApplicationHandler<State> for App {
                 .block_on(State::new(window))
                 .unwrap(),
         );
-    }
-
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: State) {
-        self.state = Some(event);
     }
 
     fn device_event(
@@ -606,7 +602,7 @@ impl ApplicationHandler<State> for App {
 pub fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let event_loop = EventLoop::with_user_event().build()?;
+    let event_loop = EventLoop::new()?;
     let mut app = App::new();
     event_loop.run_app(&mut app)?;
 
