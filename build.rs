@@ -14,8 +14,6 @@ fn build_slang(file: &str) {
     let out = std::process::Command::new("ls").output().unwrap();
     eprintln!("{:?}", out);
     let shader = Path::new(&manifest_dir)
-        .join("..")
-        .join("..")
         .join("shaders")
         .join(format!("{file}.slang"));
     assert!(shader.exists(), "Shader not found: {}", shader.display());

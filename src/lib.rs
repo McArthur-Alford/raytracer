@@ -458,6 +458,7 @@ impl State {
                 &self.new_ray_queue,
                 &self.dims,
             ));
+
             commands.push(self.new_ray_phase.render(
                 &self.device,
                 &self.paths,

@@ -2569,6 +2569,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "raytracer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "clap",
+ "env_logger",
+ "futures",
+ "glam",
+ "gltf",
+ "image",
+ "itertools",
+ "log",
+ "phf",
+ "phf_codegen",
+ "rand",
+ "serde",
+ "serde_json",
+ "strum",
+ "tobj",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "wesl",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2626,33 +2655,6 @@ name = "rgb"
 version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
-
-[[package]]
-name = "runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "clap",
- "env_logger",
- "futures",
- "glam",
- "gltf",
- "image",
- "itertools",
- "phf",
- "phf_codegen",
- "rand",
- "shared",
- "strum",
- "tobj",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "wesl",
- "wgpu",
- "winit",
-]
 
 [[package]]
 name = "rustc-hash"
@@ -2801,13 +2803,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "shared"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
 ]
 
 [[package]]
