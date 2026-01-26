@@ -4,8 +4,8 @@ use crate::{app::BevyApp, winnit::WinitApp};
 
 mod app;
 mod binder;
-// mod blas;
-// mod bvh;
+mod blas;
+mod bvh;
 mod camera;
 mod dielectric;
 mod dims;
@@ -26,10 +26,10 @@ mod render_resources;
 mod sample;
 mod scenes;
 // mod shadow;
+mod schedule;
 mod texture;
 mod threadpool;
-// mod tlas;
-mod schedule;
+mod tlas;
 mod transform;
 mod winnit;
 

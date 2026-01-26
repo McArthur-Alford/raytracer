@@ -2,8 +2,6 @@ use glam::{UVec3, Vec3};
 use itertools::Itertools;
 use wgpu::util::DeviceExt;
 
-use crate::mesh::{Mesh, Meshes};
-
 #[derive(Default, Clone, Copy, Debug)]
 pub struct AABB {
     pub lb: Vec3,

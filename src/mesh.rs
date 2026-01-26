@@ -1,17 +1,27 @@
 use std::collections::HashMap;
 
 use bevy_ecs::prelude::*;
+use crossbeam::channel::bounded;
 use glam::{UVec2, UVec3, UVec4, Vec3, Vec4, Vec4Swizzles};
 use itertools::Itertools;
 use wgpu::{BindGroupLayoutEntry, util::DeviceExt};
 
-use crate::app::BevyApp;
+use crate::{
+    app::BevyApp,
+    blas::BLAS,
+    bvh::{AABB, BVH, BVHNodeGPU},
+    render_resources::RenderDevice,
+    schedule::{self, Update},
+};
 
 pub fn initialize(app: &mut BevyApp) {
     app.world.insert_resource(MeshServer::default());
+    app.world
+        .get_resource_or_init::<Schedules>()
+        .add_systems(schedule::Update, mesh_loading_system);
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct Mesh {
     pub positions: Vec<Vec4>,
     pub normals: Vec<Vec4>,
@@ -19,7 +29,15 @@ pub struct Mesh {
     // pub uv: Vec<UVec2>,
 }
 
-#[derive(Clone, Copy, Component, Debug)]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
+pub struct GPUVertexData {
+    position: Vec4,
+    normal: Vec4,
+    uv: Vec4,
+}
+
+#[derive(Clone, Copy, Component, Debug, Eq, PartialEq, Hash)]
 pub struct MeshId(usize);
 
 #[derive(Hash, Clone, PartialEq, Eq)]
@@ -29,10 +47,117 @@ pub enum MeshDescriptor {
     Cube,
 }
 
+pub struct MeshData {
+    pub blas_buffer: wgpu::Buffer,
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub aabb: AABB,
+}
+
+pub struct MeshLoading {
+    descriptor: MeshDescriptor,
+    id: MeshId,
+    rx: Option<crossbeam::channel::Receiver<MeshData>>,
+}
+
 #[derive(Resource, Default)]
 pub struct MeshServer {
-    meshes: Vec<Mesh>,
+    loading: Vec<MeshLoading>,
+    data: Vec<Option<MeshData>>,
+    counter: usize,
     by_desc: HashMap<MeshDescriptor, MeshId>,
+}
+
+fn mesh_loading_system(mut mesh_server: ResMut<MeshServer>, device: Res<RenderDevice>) {
+    let MeshServer { loading, data, .. } = mesh_server.as_mut();
+
+    loading.retain_mut(|l| {
+        if let Some(rx) = &l.rx {
+            if let Ok(d) = rx.try_recv() {
+                data[l.id.0] = Some(d);
+                false
+            } else {
+                true
+            }
+        } else {
+            l.start(&device.0);
+            true
+        }
+    });
+}
+
+impl MeshLoading {
+    fn start(&mut self, device: &wgpu::Device) {
+        if self.rx.is_some() {
+            return;
+        }
+
+        let (tx, rx) = bounded::<MeshData>(1);
+        self.rx = Some(rx);
+
+        rayon::spawn({
+            let device = device.clone();
+            let descriptor = self.descriptor.clone();
+            move || {
+                let mut load_options = tobj::GPU_LOAD_OPTIONS;
+                load_options.single_index = false;
+                let mesh = match &descriptor {
+                    MeshDescriptor::TOBJ(s) => {
+                        Mesh::from_model(&tobj::load_obj(s, &load_options).unwrap().0[0].mesh)
+                    }
+                    MeshDescriptor::Rect => Mesh::rect(),
+                    MeshDescriptor::Cube => Mesh::cube(),
+                };
+
+                let blas = BLAS::new(mesh);
+
+                let aabb = blas.node_bounds(0);
+                let mesh = blas.mesh;
+                let nodes = blas
+                    .nodes
+                    .into_iter()
+                    .map(|node| BVHNodeGPU::from(node))
+                    .collect_vec();
+
+                let blas_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Mesh BVHNode Buffer"),
+                    contents: bytemuck::cast_slice(&nodes),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Mesh Vertex Buffer"),
+                    contents: bytemuck::cast_slice(
+                        mesh.positions
+                            .into_iter()
+                            .zip(mesh.normals)
+                            .map(|(position, normal)| GPUVertexData {
+                                position,
+                                normal,
+                                uv: Vec4::ZERO,
+                            })
+                            .collect_vec()
+                            .as_slice(),
+                    ),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Mesh Index Buffer"),
+                    contents: bytemuck::cast_slice(&mesh.faces),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
+
+                tx.send(MeshData {
+                    blas_buffer,
+                    vertex_buffer,
+                    index_buffer,
+                    aabb,
+                })
+                .expect("Expected to send mesh data");
+            }
+        });
+    }
 }
 
 impl MeshServer {
@@ -40,18 +165,25 @@ impl MeshServer {
         if let Some(id) = self.by_desc.get(&descriptor) {
             return *id;
         }
-        let mut load_options = tobj::GPU_LOAD_OPTIONS;
-        load_options.single_index = false;
-        self.meshes.push(match &descriptor {
-            MeshDescriptor::TOBJ(s) => {
-                Mesh::from_model(&tobj::load_obj(s, &load_options).unwrap().0[0].mesh)
-            }
-            MeshDescriptor::Rect => Mesh::rect(),
-            MeshDescriptor::Cube => Mesh::cube(),
+        let id = MeshId(self.counter);
+        self.data.push(None);
+        self.counter += 1;
+
+        self.loading.push(MeshLoading {
+            descriptor: descriptor.clone(),
+            id,
+            rx: None,
         });
-        let id = MeshId(self.meshes.len() - 1);
+
         self.by_desc.insert(descriptor, id);
         id
+    }
+
+    pub fn mesh_data(&self, id: MeshId) -> Option<&MeshData> {
+        if id.0 >= self.data.len() {
+            return None;
+        }
+        self.data[id.0].as_ref()
     }
 }
 

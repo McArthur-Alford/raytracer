@@ -1,9 +1,9 @@
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
 pub struct Instance {
-    pub transform: u32,
-    pub mesh: u32,
-    pub material: u32,
+    pub transform_idx: u32,
+    pub geometry_idx: u32,
+    pub material_idx: u32,
 }
 
 // pub struct Instances {

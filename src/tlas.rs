@@ -1,3 +1,4 @@
+use bevy_ecs::resource::Resource;
 use glam::Mat4;
 use glam::UVec3;
 use glam::Vec3;
@@ -7,17 +8,16 @@ use itertools::repeat_n;
 use wgpu::util::DeviceExt;
 
 use crate::blas::BLAS;
-use crate::blas::BLASData;
 use crate::bvh::AABB;
 use crate::bvh::AABBGPU;
 use crate::bvh::BVH;
 use crate::bvh::BVHNode;
 use crate::bvh::BVHNodeGPU;
 use crate::instance::Instance;
-use crate::instance::Transform;
 use crate::mesh::Mesh;
+use crate::transform::Transform;
 
-#[derive(Debug)]
+#[derive(Debug, Resource, Default)]
 pub struct TLAS {
     pub nodes: Vec<BVHNode>,
     pub instance_ids: Vec<usize>,
@@ -58,11 +58,11 @@ impl BVH for TLAS {
 }
 
 impl TLAS {
-    pub fn new(blases: &Vec<BLAS>, instances: &Vec<Instance>) -> Self {
+    pub fn new(aabbs: &Vec<AABB>, transforms: &Vec<Transform>, instances: &Vec<Instance>) -> Self {
         let aabbs = instances
             .iter()
             .map(|i| {
-                let aabb = blases[i.mesh as usize].node_bounds(0);
+                let aabb = aabbs[i.geometry_idx as usize];
                 let corners = repeat_n((0..=1).into_iter(), 3)
                     .multi_cartesian_product()
                     .map(|p| {
@@ -75,14 +75,16 @@ impl TLAS {
                     })
                     .collect_vec();
 
-                let translate = Mat4::from_translation(i.transform.translation);
+                let transform = &transforms[i.transform_idx as usize];
 
-                let rotate = Mat4::from_rotation_x(i.transform.rotation.x).mul_mat4(
-                    &Mat4::from_rotation_y(i.transform.rotation.y)
-                        .mul_mat4(&Mat4::from_rotation_z(i.transform.rotation.z)),
+                let translate = Mat4::from_translation(transform.translation.truncate());
+
+                let rotate = Mat4::from_rotation_x(transform.rotation.x).mul_mat4(
+                    &Mat4::from_rotation_y(transform.rotation.y)
+                        .mul_mat4(&Mat4::from_rotation_z(transform.rotation.z)),
                 );
 
-                let scale = Mat4::from_scale(i.transform.scale);
+                let scale = Mat4::from_scale(transform.scale.truncate());
 
                 let m = translate.mul_mat4(&rotate.mul_mat4(&scale));
 
@@ -114,105 +116,105 @@ impl TLAS {
     }
 }
 
-pub struct TLASData {
-    pub nodes: Vec<BVHNodeGPU>,
-    pub bindgroup: wgpu::BindGroup,
-    pub bindgroup_layout: wgpu::BindGroupLayout,
-}
+// pub struct TLASData {
+//     pub nodes: Vec<BVHNodeGPU>,
+//     pub bindgroup: wgpu::BindGroup,
+//     pub bindgroup_layout: wgpu::BindGroupLayout,
+// }
 
-impl TLASData {
-    pub fn new(device: &wgpu::Device, tlas: TLAS) -> Self {
-        let nodes = tlas
-            .nodes
-            .into_iter()
-            .map(|n| BVHNodeGPU::from(n))
-            .collect_vec();
+// impl TLASData {
+//     pub fn new(device: &wgpu::Device, tlas: TLAS) -> Self {
+//         let nodes = tlas
+//             .nodes
+//             .into_iter()
+//             .map(|n| BVHNodeGPU::from(n))
+//             .collect_vec();
 
-        let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("BVHNode buffer"),
-            contents: bytemuck::cast_slice(&nodes),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+//         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+//             label: Some("BVHNode buffer"),
+//             contents: bytemuck::cast_slice(&nodes),
+//             usage: wgpu::BufferUsages::STORAGE,
+//         });
 
-        let instance_id_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Instance ID buffer"),
-            contents: bytemuck::cast_slice(
-                &tlas.instance_ids.iter().map(|i| *i as u32).collect_vec(),
-            ),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+//         let instance_id_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+//             label: Some("Instance ID buffer"),
+//             contents: bytemuck::cast_slice(
+//                 &tlas.instance_ids.iter().map(|i| *i as u32).collect_vec(),
+//             ),
+//             usage: wgpu::BufferUsages::STORAGE,
+//         });
 
-        let aabb_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("AABB buffer"),
-            contents: bytemuck::cast_slice(
-                &tlas
-                    .aabbs
-                    .into_iter()
-                    .map(|aabb| AABBGPU::from(aabb))
-                    .collect_vec(),
-            ),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+//         let aabb_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+//             label: Some("AABB buffer"),
+//             contents: bytemuck::cast_slice(
+//                 &tlas
+//                     .aabbs
+//                     .into_iter()
+//                     .map(|aabb| AABBGPU::from(aabb))
+//                     .collect_vec(),
+//             ),
+//             usage: wgpu::BufferUsages::STORAGE,
+//         });
 
-        let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Triangles bindgroup layout descriptor"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
+//         let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+//             label: Some("Triangles bindgroup layout descriptor"),
+//             entries: &[
+//                 wgpu::BindGroupLayoutEntry {
+//                     binding: 0,
+//                     visibility: wgpu::ShaderStages::COMPUTE,
+//                     ty: wgpu::BindingType::Buffer {
+//                         ty: wgpu::BufferBindingType::Storage { read_only: true },
+//                         has_dynamic_offset: false,
+//                         min_binding_size: None,
+//                     },
+//                     count: None,
+//                 },
+//                 wgpu::BindGroupLayoutEntry {
+//                     binding: 1,
+//                     visibility: wgpu::ShaderStages::COMPUTE,
+//                     ty: wgpu::BindingType::Buffer {
+//                         ty: wgpu::BufferBindingType::Storage { read_only: true },
+//                         has_dynamic_offset: false,
+//                         min_binding_size: None,
+//                     },
+//                     count: None,
+//                 },
+//                 wgpu::BindGroupLayoutEntry {
+//                     binding: 2,
+//                     visibility: wgpu::ShaderStages::COMPUTE,
+//                     ty: wgpu::BindingType::Buffer {
+//                         ty: wgpu::BufferBindingType::Storage { read_only: true },
+//                         has_dynamic_offset: false,
+//                         min_binding_size: None,
+//                     },
+//                     count: None,
+//                 },
+//             ],
+//         });
 
-        let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Triangles bindgroup"),
-            layout: &bindgroup_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: node_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: instance_id_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: aabb_buffer.as_entire_binding(),
-                },
-            ],
-        });
+//         let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+//             label: Some("Triangles bindgroup"),
+//             layout: &bindgroup_layout,
+//             entries: &[
+//                 wgpu::BindGroupEntry {
+//                     binding: 0,
+//                     resource: node_buffer.as_entire_binding(),
+//                 },
+//                 wgpu::BindGroupEntry {
+//                     binding: 1,
+//                     resource: instance_id_buffer.as_entire_binding(),
+//                 },
+//                 wgpu::BindGroupEntry {
+//                     binding: 2,
+//                     resource: aabb_buffer.as_entire_binding(),
+//                 },
+//             ],
+//         });
 
-        Self {
-            nodes,
-            bindgroup,
-            bindgroup_layout,
-        }
-    }
-}
+//         Self {
+//             nodes,
+//             bindgroup,
+//             bindgroup_layout,
+//         }
+//     }
+// }

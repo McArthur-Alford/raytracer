@@ -9,7 +9,7 @@ pub fn initialize(app: &mut BevyApp) {
     app.world.insert_resource(MaterialServer::default());
 }
 
-#[derive(Default, Component)]
+#[derive(Default, Component, Copy, Clone)]
 pub struct Material {
     pub colour_texture: u32,             // 0 -> use base colour
     pub emissive_texture: u32,           // 0 -> use base emissive
@@ -21,7 +21,7 @@ pub struct Material {
     pub roughness: f32,                  // 0.0..=1.0
 }
 
-#[derive(Copy, Clone, Component, Debug)]
+#[derive(Copy, Clone, Component, Debug, Hash, Eq, PartialEq)]
 pub struct MaterialId(usize);
 
 #[derive(Resource, Default)]
@@ -43,6 +43,10 @@ impl MaterialServer {
         let id = self.add_material(material);
         self.by_label.insert(label, id);
         id
+    }
+
+    pub fn get(&self, id: MaterialId) -> Option<&Material> {
+        self.materials.get(id.0)
     }
 }
 
