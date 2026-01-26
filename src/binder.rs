@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZero};
 
 use bevy_ecs::prelude::*;
+use wgpu::util::DeviceExt;
 
 use crate::{
     app::BevyApp,
@@ -16,9 +17,15 @@ use crate::{
 };
 
 pub fn initialize(app: &mut BevyApp) {
+    app.world.insert_resource(PathTracerBindings::default());
     app.world
         .get_resource_or_init::<Schedules>()
         .add_systems(schedule::Update, binder_system);
+}
+
+#[derive(Resource, Default)]
+pub struct PathTracerBindings {
+    pub bind_group: Option<wgpu::BindGroup>,
 }
 
 #[derive(Resource)]
@@ -44,7 +51,9 @@ fn binder_system(
     material_server: Res<MaterialServer>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
+    pto: Query<(&Pathtracer, &PathtracerOutput)>,
     mut binder_local: Local<BinderLocal>,
+    mut path_tracer_bindings: ResMut<PathTracerBindings>,
 ) {
     // Buffers that i need:
     // Vertex buffer with all the vertices.
@@ -160,72 +169,109 @@ fn binder_system(
     }
     let tlas = &binder_local.tlas_cache;
 
-    // let bg_layout = device
-    //     .0
-    //     .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-    //         label: Some("Binder Test"),
-    //         entries: &[wgpu::BindGroupLayoutEntry {
-    //             binding: 0,
-    //             visibility: wgpu::ShaderStages::COMPUTE,
-    //             ty: wgpu::BindingType::Buffer {
-    //                 ty: wgpu::BufferBindingType::Storage { read_only: false },
-    //                 has_dynamic_offset: false,
-    //                 min_binding_size: None,
-    //             },
-    //             count: None,
-    //         }],
-    //     });
+    // Temporary
+    let Ok(buffer) = pto.single() else {
+        return;
+    };
 
-    // let bg = device.0.create_bind_group(&wgpu::BindGroupDescriptor {
-    //     label: Some("magic"),
-    //     layout: &bg_layout,
-    //     entries: &[wgpu::BindGroupEntry {
-    //         binding: 0,
-    //         resource: buffer.1.source_buffer.as_entire_binding(),
-    //     }],
-    // });
+    let bind_group_layout = device
+        .0
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Pathtracer Bindgroup Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: Some(NonZero::new(vertices.len() as u32).unwrap()),
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: Some(NonZero::new(indices.len() as u32).unwrap()),
+                },
+            ],
+        });
 
-    // let shader = device
-    //     .0
-    //     .create_shader_module(wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/magic.spv")));
+    let bind_group = device.0.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Pathtracer Bindgroup Descriptor"),
+        layout: &bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.1.source_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::BufferArray(&vertices),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::BufferArray(&indices),
+            },
+        ],
+    });
 
-    // let pl_layout = device
-    //     .0
-    //     .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-    //         label: Some("magic_pl_layout"),
-    //         bind_group_layouts: &[&bg_layout],
-    //         push_constant_ranges: &[],
-    //     });
+    let shader = device
+        .0
+        .create_shader_module(wgpu::include_spirv!(concat!(env!("OUT_DIR"), "/magic.spv")));
 
-    // let pl = device
-    //     .0
-    //     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-    //         label: Some("magic_pl"),
-    //         layout: Some(&pl_layout),
-    //         module: &shader,
-    //         entry_point: Some("main"),
-    //         compilation_options: wgpu::PipelineCompilationOptions::default(),
-    //         cache: None,
-    //     });
+    let pl_layout = device
+        .0
+        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("magic_pl_layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
 
-    // let mut encoder = device
-    //     .0
-    //     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-    //         label: Some("Magic Encoder"),
-    //     });
+    let pl = device
+        .0
+        .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("magic_pl"),
+            layout: Some(&pl_layout),
+            module: &shader,
+            entry_point: Some("main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
 
-    // let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-    //     label: Some("CS Descriptor"),
-    //     ..Default::default()
-    // });
+    let mut encoder = device
+        .0
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Magic Encoder"),
+        });
 
-    // compute_pass.set_pipeline(&pl);
-    // compute_pass.set_bind_group(0, Some(&bg), &[]);
-    // compute_pass.dispatch_workgroups(buffer.0.dims.0.div_ceil(8), buffer.0.dims.1.div_ceil(8), 1);
+    let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+        label: Some("CS Descriptor"),
+        ..Default::default()
+    });
 
-    // drop(compute_pass);
+    compute_pass.set_pipeline(&pl);
+    compute_pass.set_bind_group(0, Some(&bind_group), &[]);
+    compute_pass.dispatch_workgroups(buffer.0.dims.0.div_ceil(8), buffer.0.dims.1.div_ceil(8), 1);
 
-    // let command = encoder.finish();
+    drop(compute_pass);
 
-    // queue.0.submit([command]);
+    let command = encoder.finish();
+
+    queue.0.submit([command]);
 }

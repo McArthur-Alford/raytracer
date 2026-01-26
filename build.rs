@@ -52,4 +52,5 @@ fn main() {
     build_slang("dielectric");
     build_slang("emissive");
     build_slang("shadow");
+    build_slang("magic");
 }

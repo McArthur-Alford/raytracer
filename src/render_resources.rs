@@ -59,6 +59,7 @@ fn setup_renderer(mut commands: Commands, window: Option<Res<WinitWindow>>) {
     limits.max_bind_groups = 8;
     limits.max_storage_buffer_binding_size = 402653184;
     limits.max_buffer_size = 402653184;
+    limits.max_binding_array_elements_per_shader_stage = 1000;
     let required_features = wgpu::Features::empty()
         .union(wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING)
         .union(wgpu::Features::BUFFER_BINDING_ARRAY)
