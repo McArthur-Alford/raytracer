@@ -1,17 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use bevy_ecs::prelude::*;
 use crossbeam::channel::bounded;
-use glam::{UVec2, UVec3, UVec4, Vec3, Vec4, Vec4Swizzles};
+use glam::{UVec3, UVec4, Vec3, Vec4, Vec4Swizzles};
 use itertools::Itertools;
-use wgpu::{BindGroupLayoutEntry, util::DeviceExt};
+use wgpu::util::DeviceExt;
 
 use crate::{
     app::BevyApp,
     blas::BLAS,
     bvh::{AABB, BVH, BVHNodeGPU},
     render_resources::RenderDevice,
-    schedule::{self, Update},
+    schedule::{self},
 };
 
 pub fn initialize(app: &mut BevyApp) {
@@ -27,6 +27,14 @@ pub struct Mesh {
     pub normals: Vec<Vec4>,
     pub faces: Vec<UVec4>,
     // pub uv: Vec<UVec2>,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
+pub struct GeometryOffsets {
+    pub vertex: u32,
+    pub index: u32,
+    pub nodes: u32,
 }
 
 #[repr(C)]
@@ -48,9 +56,8 @@ pub enum MeshDescriptor {
 }
 
 pub struct MeshData {
-    pub blas_buffer: wgpu::Buffer,
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
+    pub nodes: Vec<BVHNodeGPU>,
+    pub mesh: Mesh,
     pub aabb: AABB,
 }
 
@@ -66,28 +73,40 @@ pub struct MeshServer {
     data: Vec<Option<MeshData>>,
     counter: usize,
     by_desc: HashMap<MeshDescriptor, MeshId>,
+    node_buffer: Option<wgpu::Buffer>,
+    vertex_buffer: Option<wgpu::Buffer>,
+    index_buffer: Option<wgpu::Buffer>,
+    offset_buffer: Option<wgpu::Buffer>,
+    aabbs: Vec<AABB>,
+    mesh_id_to_geom_id: HashMap<usize, u32>,
 }
 
 fn mesh_loading_system(mut mesh_server: ResMut<MeshServer>, device: Res<RenderDevice>) {
     let MeshServer { loading, data, .. } = mesh_server.as_mut();
 
+    let mut changed = false;
     loading.retain_mut(|l| {
         if let Some(rx) = &l.rx {
             if let Ok(d) = rx.try_recv() {
                 data[l.id.0] = Some(d);
+                changed = true;
                 false
             } else {
                 true
             }
         } else {
-            l.start(&device.0);
+            l.start();
             true
         }
     });
+
+    if changed {
+        mesh_server.regenerate_buffer(device.0.clone());
+    }
 }
 
 impl MeshLoading {
-    fn start(&mut self, device: &wgpu::Device) {
+    fn start(&mut self) {
         if self.rx.is_some() {
             return;
         }
@@ -96,7 +115,7 @@ impl MeshLoading {
         self.rx = Some(rx);
 
         rayon::spawn({
-            let device = device.clone();
+            // let device = device.clone();
             let descriptor = self.descriptor.clone();
             move || {
                 let mut load_options = tobj::GPU_LOAD_OPTIONS;
@@ -110,7 +129,6 @@ impl MeshLoading {
                 };
 
                 let blas = BLAS::new(mesh);
-
                 let aabb = blas.node_bounds(0);
                 let mesh = blas.mesh;
                 let nodes = blas
@@ -119,42 +137,8 @@ impl MeshLoading {
                     .map(|node| BVHNodeGPU::from(node))
                     .collect_vec();
 
-                let blas_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Mesh BVHNode Buffer"),
-                    contents: bytemuck::cast_slice(&nodes),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-
-                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Mesh Vertex Buffer"),
-                    contents: bytemuck::cast_slice(
-                        mesh.positions
-                            .into_iter()
-                            .zip(mesh.normals)
-                            .map(|(position, normal)| GPUVertexData {
-                                position,
-                                normal,
-                                uv: Vec4::ZERO,
-                            })
-                            .collect_vec()
-                            .as_slice(),
-                    ),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-
-                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Mesh Index Buffer"),
-                    contents: bytemuck::cast_slice(&mesh.faces),
-                    usage: wgpu::BufferUsages::STORAGE,
-                });
-
-                tx.send(MeshData {
-                    blas_buffer,
-                    vertex_buffer,
-                    index_buffer,
-                    aabb,
-                })
-                .expect("Expected to send mesh data");
+                tx.send(MeshData { nodes, mesh, aabb })
+                    .expect("Expected to send mesh data");
             }
         });
     }
@@ -184,6 +168,118 @@ impl MeshServer {
             return None;
         }
         self.data[id.0].as_ref()
+    }
+
+    pub fn vertex_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.vertex_buffer
+    }
+
+    pub fn index_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.index_buffer
+    }
+
+    pub fn node_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.node_buffer
+    }
+
+    pub fn offset_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.offset_buffer
+    }
+
+    pub fn aabbs(&self) -> &Vec<AABB> {
+        &self.aabbs
+    }
+
+    pub fn geom_id(&self, id: MeshId) -> Option<u32> {
+        self.mesh_id_to_geom_id.get(&id.0).copied()
+    }
+
+    pub fn regenerate_buffer(&mut self, device: Arc<wgpu::Device>) {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut nodes = Vec::new();
+        let mut aabbs = Vec::new();
+
+        let mut mesh_id_to_geom_id = HashMap::new();
+        let mut geom_id: u32 = 0;
+        let mut offsets = Vec::new();
+
+        for (mesh_id, mesh_data) in self
+            .data
+            .iter()
+            .enumerate()
+            .filter_map(|(id, m)| m.as_ref().map(|m| (id, m)))
+        {
+            let Mesh {
+                positions,
+                normals,
+                faces,
+            } = mesh_data.mesh.clone();
+
+            // Map the mesh id to geometry id for packing:
+            mesh_id_to_geom_id.insert(mesh_id, geom_id);
+            geom_id += 1;
+
+            // Produce offset for start of this geometry in each buffer:
+            offsets.push(GeometryOffsets {
+                vertex: vertices.len() as u32,
+                index: indices.len() as u32,
+                nodes: nodes.len() as u32,
+            });
+
+            // Push the new data onto the buffers:
+            aabbs.push(mesh_data.aabb);
+            nodes.extend(mesh_data.nodes.clone());
+            vertices.extend_from_slice(
+                positions
+                    .into_iter()
+                    .zip(normals)
+                    .map(|(position, normal)| GPUVertexData {
+                        position,
+                        normal,
+                        uv: Vec4::ZERO,
+                    })
+                    .collect_vec()
+                    .as_slice(),
+            );
+            indices.extend(faces);
+        }
+
+        self.mesh_id_to_geom_id = mesh_id_to_geom_id;
+
+        self.aabbs = aabbs;
+
+        self.node_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Mesh BVHNode Buffer"),
+                contents: bytemuck::cast_slice(&nodes),
+                usage: wgpu::BufferUsages::STORAGE,
+            }),
+        );
+
+        self.vertex_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Mesh Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::STORAGE,
+            }),
+        );
+
+        self.index_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Mesh Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: wgpu::BufferUsages::STORAGE,
+            }),
+        );
+
+        self.offset_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Geometry Offset Buffer"),
+                contents: bytemuck::cast_slice(&offsets),
+                usage: wgpu::BufferUsages::STORAGE,
+            }),
+        )
     }
 }
 
@@ -438,119 +534,3 @@ impl Mesh {
         }
     }
 }
-
-// pub struct Meshes {
-//     pub unified: Mesh,
-//     pub triangles_bindgroup: wgpu::BindGroup,
-//     pub triangles_bindgroup_layout: wgpu::BindGroupLayout,
-// }
-
-// impl Meshes {
-//     pub fn new(device: &wgpu::Device, meshes: Vec<Mesh>) -> Self {
-//         // Merge the meshes
-//         let mut positions = Vec::new();
-//         let mut normals = Vec::new();
-//         let mut faces = Vec::new();
-//         let mut offset = 0;
-
-//         for mut mesh in meshes {
-//             // TODO: Can be optimised using a hashmap/btreemap to re-id
-//             // all the vertices shared between meshes.
-//             positions.append(&mut mesh.positions);
-//             normals.append(&mut mesh.normals);
-//             faces.append(&mut mesh.faces.iter().map(|f| f.map(|i| i + offset)).collect());
-
-//             // Move offset to the end of this meshes vertices
-//             offset += mesh.positions.len() as u32;
-//         }
-
-//         let unified = Mesh {
-//             positions,
-//             normals,
-//             faces,
-//         };
-
-//         // Make the position buffer:
-//         let position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-//             label: Some("Position buffer"),
-//             contents: bytemuck::cast_slice(&unified.positions),
-//             usage: wgpu::BufferUsages::STORAGE,
-//         });
-
-//         // Make the faces buffer:
-//         let face_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-//             label: Some("Face buffer"),
-//             contents: bytemuck::cast_slice(&unified.faces),
-//             usage: wgpu::BufferUsages::STORAGE,
-//         });
-
-//         // Make the normals buffer:
-//         let normal_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-//             label: Some("Normal buffer"),
-//             contents: bytemuck::cast_slice(&unified.normals),
-//             usage: wgpu::BufferUsages::STORAGE,
-//         });
-
-//         let triangles_bindgroup_layout =
-//             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-//                 label: Some("Triangles bindgroup layout descriptor"),
-//                 entries: &[
-//                     BindGroupLayoutEntry {
-//                         binding: 0,
-//                         visibility: wgpu::ShaderStages::COMPUTE,
-//                         ty: wgpu::BindingType::Buffer {
-//                             ty: wgpu::BufferBindingType::Storage { read_only: true },
-//                             has_dynamic_offset: false,
-//                             min_binding_size: None,
-//                         },
-//                         count: None,
-//                     },
-//                     BindGroupLayoutEntry {
-//                         binding: 1,
-//                         visibility: wgpu::ShaderStages::COMPUTE,
-//                         ty: wgpu::BindingType::Buffer {
-//                             ty: wgpu::BufferBindingType::Storage { read_only: true },
-//                             has_dynamic_offset: false,
-//                             min_binding_size: None,
-//                         },
-//                         count: None,
-//                     },
-//                     BindGroupLayoutEntry {
-//                         binding: 2,
-//                         visibility: wgpu::ShaderStages::COMPUTE,
-//                         ty: wgpu::BindingType::Buffer {
-//                             ty: wgpu::BufferBindingType::Storage { read_only: true },
-//                             has_dynamic_offset: false,
-//                             min_binding_size: None,
-//                         },
-//                         count: None,
-//                     },
-//                 ],
-//             });
-
-//         let triangles_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-//             label: Some("Triangles bindgroup"),
-//             layout: &triangles_bindgroup_layout,
-//             entries: &[
-//                 wgpu::BindGroupEntry {
-//                     binding: 0,
-//                     resource: position_buffer.as_entire_binding(),
-//                 },
-//                 wgpu::BindGroupEntry {
-//                     binding: 1,
-//                     resource: face_buffer.as_entire_binding(),
-//                 },
-//                 wgpu::BindGroupEntry {
-//                     binding: 2,
-//                     resource: normal_buffer.as_entire_binding(),
-//                 },
-//             ],
-//         });
-
-//         Self {
-//             unified,
-//             triangles_bindgroup,
-//             triangles_bindgroup_layout,
-//         }
-//     }
-// }

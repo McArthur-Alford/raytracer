@@ -9,7 +9,8 @@ pub fn initialize(app: &mut BevyApp) {
     app.world.insert_resource(MaterialServer::default());
 }
 
-#[derive(Default, Component, Copy, Clone)]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default, Component)]
 pub struct Material {
     pub colour_texture: u32,             // 0 -> use base colour
     pub emissive_texture: u32,           // 0 -> use base emissive
@@ -19,6 +20,8 @@ pub struct Material {
     pub emissive: Vec4,                  // 0.0..=1.0 rgba
     pub metallic: f32,                   // 0.0..=1.0
     pub roughness: f32,                  // 0.0..=1.0
+    pub pad_0: u32,
+    pub pad_1: u32,
 }
 
 #[derive(Copy, Clone, Component, Debug, Hash, Eq, PartialEq)]
