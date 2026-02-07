@@ -59,6 +59,7 @@ void accumulateSample(uint idx, uint id) {
 void spawnSample(uint idx) {
   var s = &samples[idx];
   var ray = &extension_rays[idx];
+  var hit = &extension_hit_records[idx];
 
   // Pull a sample to spawn:
   uint sample_idx;
@@ -67,13 +68,20 @@ void spawnSample(uint idx) {
   let sample_source = sample_sources[sample_idx];
 
   // Initialize sample:
-  s.bounces = 0;
+  s.bounces = 16;
   s.rad = float3(0);
   s.sample_id = sample_idx;
   s.throughput = float3(1.0);
 
   // Initialize the ray:
   ray.pos = camera.position;
+
+  // Initialize the hit:
+  // I guess if we have int.maxValue instances and triangles
+  // this would exclude a poly incorrectly, but im willing to take
+  // that risk :)
+  hit.instance_id = int.maxValue;
+  hit.triangle_id = int.maxValue;
 
   // Generate from camera:
   let right = cross(camera.forward, camera.up);
@@ -125,7 +133,7 @@ void sampleCleanup(uint3 threadId : SV_DispatchThreadID) {
 
   for (int i = threadId.x * work; i < threadId.x * work + work; i++) {
     if (camera.changed != 0) {
-      sample_sources[i].sample_count = 0;
+      sample_sources[i].sample_count = 1;
       sample_sources[i].flags = 0;
       sample_sum.InterlockedExchange(i * sizeof(uint4) + 0 * sizeof(uint), 0);
       sample_sum.InterlockedExchange(i * sizeof(uint4) + 1 * sizeof(uint), 0);

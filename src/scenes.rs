@@ -1,3 +1,5 @@
+use std::f32;
+
 use crate::{
     app::BevyApp,
     material::{Material, MaterialServer},
@@ -21,9 +23,17 @@ fn simple_scene(
     mut material_server: ResMut<MaterialServer>,
 ) {
     let cube_mesh = mesh_server.load_mesh(MeshDescriptor::Cube);
-    // let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
-    let material = material_server.add_material(Material {
-        colour: Vec4::new(1.0, 0.5, 1.0, 1.0),
+    let dragon_mesh = mesh_server.load_mesh(MeshDescriptor::TOBJ("./assets/dragon.obj".to_owned()));
+    let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
+    let gold_material = material_server.add_material(Material {
+        colour: Vec4::new(1.0, 0.8, 0.0, 1.0),
+        emissive: Vec4::ZERO,
+        metallic: 1.0,
+        roughness: 0.0,
+        ..Default::default()
+    });
+    let gray_material = material_server.add_material(Material {
+        colour: Vec4::new(0.8, 0.8, 0.8, 1.0),
         emissive: Vec4::ZERO,
         metallic: 0.0,
         roughness: 1.0,
@@ -36,18 +46,27 @@ fn simple_scene(
             rotation: Vec4::ZERO,
             translation: Vec4::new(0.0, 0.0, 2.0, 0.0),
         },
-        material,
+        gold_material,
+        dragon_mesh,
+    ));
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(3.0, 0.5, 3.0, 1.0),
+            rotation: Vec4::ZERO,
+            translation: Vec4::new(5.0, 1.0, 2.0, 0.0),
+        },
+        gray_material,
         cube_mesh,
     ));
-    // commands.spawn((
-    //     Transform {
-    //         scale: Vec4::ONE,
-    //         rotation: Vec4::ZERO,
-    //         translation: Vec4::ZERO,
-    //     },
-    //     material,
-    //     rect_mesh,
-    // ));
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(100.0, 100.0, 1.0, 1.0),
+            rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+            translation: Vec4::new(0.0, -1.0, 0.0, 0.0),
+        },
+        gray_material,
+        rect_mesh,
+    ));
 }
 
 // use core::f32;

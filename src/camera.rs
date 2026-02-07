@@ -1,5 +1,100 @@
-use bevy_ecs::component::Component;
+use std::collections::{HashMap, HashSet};
+
+use bevy_ecs::prelude::*;
+use glam::Vec2;
 use wgpu::util::DeviceExt;
+use winit::{event::WindowEvent, keyboard::KeyCode};
+
+use crate::{
+    app::{self, BevyApp},
+    render_resources::RenderQueue,
+    winnit::{WinitDeviceEvent, WinitWindowEvent},
+};
+
+pub fn initialize(app: &mut BevyApp) {
+    app.world.get_resource_or_init::<Schedules>().add_systems(
+        crate::schedule::Update,
+        (
+            camera_system.after(camera_buffer_system),
+            camera_buffer_system,
+        ),
+    );
+}
+
+fn camera_buffer_system(cameras: Query<&mut Camera>, queue: Res<RenderQueue>) {
+    for mut camera in cameras {
+        camera.update(&queue.0);
+    }
+}
+
+fn camera_system(
+    mut de_reader: MessageReader<WinitDeviceEvent>,
+    mut we_reader: MessageReader<WinitWindowEvent>,
+    mut camera: Query<&mut Camera>,
+    mut keys_pressed: Local<HashSet<KeyCode>>,
+) {
+    // DANGER: This is super sketch and will break the moment i try to do anything else with
+    // multiple cameras, or read any other kind of input (such as for resizing) yay!
+    // TODO: DO THIS PROPERLY, HAVE A WINIT EVENT -> ENGINE EVENT mapping system.
+
+    let Ok(mut camera) = camera.single_mut() else {
+        return;
+    };
+
+    for WinitDeviceEvent(e) in de_reader.read() {
+        match e {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                const MOUSE_SENSITIVITY: f32 = 0.001;
+                camera.rotate(Vec2::new(delta.0 as f32, delta.1 as f32) * MOUSE_SENSITIVITY);
+            }
+            _ => {}
+        }
+    }
+    for WinitWindowEvent(e) in we_reader.read() {
+        match e {
+            winit::event::WindowEvent::KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => {
+                let winit::keyboard::PhysicalKey::Code(key) = event.physical_key else {
+                    continue;
+                };
+                if event.state.is_pressed() {
+                    keys_pressed.insert(key);
+                } else {
+                    keys_pressed.remove(&key);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for key in keys_pressed.iter() {
+        const MOVE_SPEED: f32 = 0.001;
+        match key {
+            KeyCode::KeyW => {
+                camera.translate((0.0, 0.0, MOVE_SPEED));
+            }
+            KeyCode::KeyA => {
+                camera.translate((-MOVE_SPEED, 0.0, 0.0));
+            }
+            KeyCode::KeyS => {
+                camera.translate((0.0, 0.0, -MOVE_SPEED));
+            }
+            KeyCode::KeyD => {
+                camera.translate((MOVE_SPEED, 0.0, 0.0));
+            }
+            KeyCode::Space => {
+                camera.translate((0.0, MOVE_SPEED, 0.0));
+            }
+            KeyCode::ControlLeft => {
+                camera.translate((0.0, -MOVE_SPEED, 0.0));
+            }
+            _ => {}
+        };
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]

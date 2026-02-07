@@ -82,7 +82,7 @@ pub struct MeshServer {
 }
 
 fn mesh_loading_system(mut mesh_server: ResMut<MeshServer>, device: Res<RenderDevice>) {
-    let MeshServer { loading, data, .. } = mesh_server.as_mut();
+    let MeshServer { loading, data, .. } = mesh_server.bypass_change_detection();
 
     let mut changed = false;
     loading.retain_mut(|l| {
@@ -102,6 +102,7 @@ fn mesh_loading_system(mut mesh_server: ResMut<MeshServer>, device: Res<RenderDe
 
     if changed {
         mesh_server.regenerate_buffer(device.0.clone());
+        mesh_server.set_changed();
     }
 }
 
@@ -210,7 +211,6 @@ impl MeshServer {
             .enumerate()
             .filter_map(|(id, m)| m.as_ref().map(|m| (id, m)))
         {
-            dbg!(mesh_id);
             let Mesh {
                 positions,
                 normals,

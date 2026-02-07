@@ -18,6 +18,7 @@ pub struct PathtracerPhase {
     sample_main_pipeline: wgpu::ComputePipeline,
     sample_cleanup_pipeline: wgpu::ComputePipeline,
     ray_extend_pipeline: wgpu::ComputePipeline,
+    shade_pipeline: wgpu::ComputePipeline,
 }
 
 pub fn initialize(app: &mut BevyApp) {
@@ -111,6 +112,9 @@ fn pathtracer_phase_execute(
         compute_pass.set_pipeline(&ptp.ray_extend_pipeline);
         compute_pass.dispatch_workgroups(pt.threads.div_ceil(64), 1, 1);
 
+        compute_pass.set_pipeline(&ptp.shade_pipeline);
+        compute_pass.dispatch_workgroups(pt.threads.div_ceil(64), 1, 1);
+
         drop(compute_pass);
 
         let command = encoder.finish();
@@ -202,6 +206,9 @@ impl PathtracerPhase {
         let ray_extend_shader = device
             .create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/ray_extend.spv")));
 
+        let shade_shader =
+            device.create_shader_module(include_spirv!(concat!(env!("OUT_DIR"), "/shade.spv")));
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pathtracer Pipeline Layout"),
             bind_group_layouts: &[
@@ -252,10 +259,23 @@ impl PathtracerPhase {
                 cache: None,
             });
 
+        let shade_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Pathtracer Shade Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shade_shader,
+            entry_point: Some("main"),
+            compilation_options: wgpu::PipelineCompilationOptions {
+                constants: &[],
+                zero_initialize_workgroup_memory: false,
+            },
+            cache: None,
+        });
+
         PathtracerPhase {
             sample_main_pipeline,
             sample_cleanup_pipeline,
             ray_extend_pipeline,
+            shade_pipeline,
         }
     }
 }

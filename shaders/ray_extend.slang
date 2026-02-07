@@ -23,25 +23,23 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     return;
   }
 
-  var s = &samples[idx];
-  var ray = &extension_rays[idx];
+  let s = &samples[idx];
+  let ray = &extension_rays[idx];
+  let hit = &extension_hit_records[idx];
 
-  // trace the ray
-  // Start a tlas intersect on the tlas root:
-
-  // If hit, rad = 1 else 0 for now
   float t = float.maxValue;
   HitRecord h;
  
-  s.rad = float3(0.0);
-  bool magic = tlasFirstHit(*ray, t, h);
-  if (magic) {
-    Instance instance = instances[h.instance_id];
-    let mat = materials[instance.material];
-    s.rad = dot(-h.vert.normal.xyz, ray.dir) * mat.colour.xyz;
-  }
+  if (!tlasFirstHit(*ray, hit.instance_id, hit.triangle_id, t, h)) {
+    // No hit, queue for skybox?
+    s.rad = s.throughput * float3(1.0);
+    queuePush(terminate_qh, terminate_qd, idx);
+    return;
+  };
 
-  queuePush(terminate_qh, terminate_qd, idx);
+  *hit = h;
+
+  queuePush(shade_qh, shade_qd, idx);
 }
 
 bool rayTriIntersect(Ray ray, Triangle tri, inout float t, inout HitRecord h) {
@@ -107,6 +105,8 @@ bool rayBoxIntersect(Ray ray, float3 lb, float3 ub, out float tmin, inout float 
 bool blasFirstHit(
   const Ray ray,
   const uint instance_id,
+  const uint last_inst,
+  const uint last_prim,
   inout float t,
   inout HitRecord h
 ) {
@@ -134,15 +134,17 @@ bool blasFirstHit(
 
     // Iterate the primitives
     for (int p = node.start; p < node.end; p++) {
-      uint3 face = indices[p + geometry_offset.index].xyz + geometry_offset.vertex;
-      Triangle tri = Triangle(vertices[face.x], vertices[face.y], vertices[face.z]);
-      float t2 = t;
-      HitRecord h2;
-      if (rayTriIntersect(ray, tri, t2, h2)) {
-        h2.triangle_id = p;
-        t = t2;
-        h = h2;
-        success = true;
+      if (!(p == last_prim && instance_id == last_inst)) {
+        uint3 face = indices[p + geometry_offset.index].xyz + geometry_offset.vertex;
+        Triangle tri = Triangle(vertices[face.x], vertices[face.y], vertices[face.z]);
+        float t2 = t;
+        HitRecord h2;
+        if (rayTriIntersect(ray, tri, t2, h2)) {
+          h2.triangle_id = p;
+          t = t2;
+          h = h2;
+          success = true;
+        }
       }
     }
   } while (current != root);
@@ -151,6 +153,8 @@ bool blasFirstHit(
 
 bool tlasFirstHit(
   const Ray ray,
+  const uint last_inst,
+  const uint last_prim,
   inout float t,
   inout HitRecord h
 ) {
@@ -188,7 +192,7 @@ bool tlasFirstHit(
 
       float t2 = t;
       HitRecord h2;
-      if (blasFirstHit(r, i, t2, h2)) {
+      if (blasFirstHit(r, i, last_inst, last_prim, t2, h2)) {
         h2.vert.position = mul(m, h2.vert.position);
         h2.vert.normal = normalize(mul(m, h2.vert.normal));
         h2.instance_id = i;

@@ -48,6 +48,7 @@ pub fn run() -> anyhow::Result<()> {
     scenes::initialize(&mut bevy_app);
     binder::initialize(&mut bevy_app);
     pathtracer_manager::initialize(&mut bevy_app);
+    camera::initialize(&mut bevy_app);
 
     let event_loop = EventLoop::new()?;
     let mut app = WinitApp::new(bevy_app);

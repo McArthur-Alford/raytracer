@@ -184,7 +184,12 @@ pub fn binder_system(
     // let mut samplers = vec![];
 
     for (transform, mesh_id, mat_id) in objects {
-        if transform.is_changed() || mesh_id.is_changed() {
+        if transform.is_changed()
+            || transform.is_added()
+            || mesh_id.is_changed()
+            || mesh_id.is_added()
+            || mesh_server.is_changed()
+        {
             binder_local.tlas_regenerate = true;
         }
 
@@ -224,6 +229,10 @@ pub fn binder_system(
         if emissive {
             light_sources.push((instances.len() - 1) as u32);
         }
+    }
+
+    if (binder_local.tlas_regenerate) {
+        dbg!(&instances);
     }
 
     if instances.is_empty() {

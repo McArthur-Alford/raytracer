@@ -46,6 +46,7 @@ fn main() {
     build_slang("render");
     build_slang("sample");
     build_slang("ray_extend");
+    build_slang("shade");
     // build_slang("logic");
     // build_slang("new_ray");
     // build_slang("extension");
