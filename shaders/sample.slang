@@ -68,7 +68,7 @@ void spawnSample(uint idx) {
   let sample_source = sample_sources[sample_idx];
 
   // Initialize sample:
-  s.bounces = 16;
+  s.bounces = 4;
   s.rad = float3(0);
   s.sample_id = sample_idx;
   s.throughput = float3(1.0);

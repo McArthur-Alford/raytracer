@@ -98,6 +98,7 @@ impl TLAS {
             })
             .collect_vec();
 
+        let aabbs2 = aabbs.clone();
         let mut bvh = TLAS {
             nodes: vec![BVHNode {
                 is_leaf: true,
@@ -110,7 +111,48 @@ impl TLAS {
             aabbs,
         };
 
-        bvh.initialize(2);
+        // println!("AHHH:");
+        // for i in 0..bvh.instance_ids.len() {
+        //     println!(
+        //         "i: {} id: {}, lb: {}, ub: {}",
+        //         i, bvh.instance_ids[i], bvh.aabbs[i].lb, bvh.aabbs[i].ub
+        //     );
+        // }
+        // for (i, node) in bvh.nodes.iter().enumerate() {
+        //     if node.is_leaf {
+        //         println!(
+        //             "node {}: ids: {}..{}, lb: {} ub: {}",
+        //             i, node.start, node.end, node.bounds.lb, node.bounds.ub
+        //         );
+        //     }
+        // }
+        // println!("-------");
+        bvh.initialize(1);
+        // for i in 0..bvh.instance_ids.len() {
+        //     println!(
+        //         "i: {} id: {}, lb: {}, ub: {}",
+        //         i, bvh.instance_ids[i], bvh.aabbs[i].lb, bvh.aabbs[i].ub
+        //     );
+        // }
+        // for (i, node) in bvh.nodes.iter().enumerate() {
+        //     if node.is_leaf {
+        //         println!(
+        //             "LEAF node {}: ids: {}..{}, lb: {} ub: {}, skip: {}",
+        //             i, node.start, node.end, node.bounds.lb, node.bounds.ub, node.skip
+        //         );
+        //         if i == 5 {
+        //             println!("{:?}", &aabbs2[node.start]);
+        //             println!("{:?}", bvh.aabbs[node.start]);
+        //         }
+        //     } else {
+        //         println!(
+        //             "INNER node {}: left: {}, right: {}, skip: {}, lb: {} ub: {}",
+        //             i, node.left, node.right, node.skip, node.bounds.lb, node.bounds.ub
+        //         );
+        //     }
+        // }
+
+        // println!("");
 
         bvh
     }

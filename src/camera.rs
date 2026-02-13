@@ -7,6 +7,7 @@ use winit::{event::WindowEvent, keyboard::KeyCode};
 
 use crate::{
     app::{self, BevyApp},
+    delta_time::DeltaTime,
     render_resources::RenderQueue,
     winnit::{WinitDeviceEvent, WinitWindowEvent},
 };
@@ -32,6 +33,7 @@ fn camera_system(
     mut we_reader: MessageReader<WinitWindowEvent>,
     mut camera: Query<&mut Camera>,
     mut keys_pressed: Local<HashSet<KeyCode>>,
+    dt: Res<DeltaTime>,
 ) {
     // DANGER: This is super sketch and will break the moment i try to do anything else with
     // multiple cameras, or read any other kind of input (such as for resizing) yay!
@@ -71,25 +73,26 @@ fn camera_system(
     }
 
     for key in keys_pressed.iter() {
-        const MOVE_SPEED: f32 = 0.001;
+        const MOVE_SPEED: f64 = 3.0;
+        let ms = (MOVE_SPEED * dt.0) as f32;
         match key {
             KeyCode::KeyW => {
-                camera.translate((0.0, 0.0, MOVE_SPEED));
+                camera.translate((0.0, 0.0, ms));
             }
             KeyCode::KeyA => {
-                camera.translate((-MOVE_SPEED, 0.0, 0.0));
+                camera.translate((-ms, 0.0, 0.0));
             }
             KeyCode::KeyS => {
-                camera.translate((0.0, 0.0, -MOVE_SPEED));
+                camera.translate((0.0, 0.0, -ms));
             }
             KeyCode::KeyD => {
-                camera.translate((MOVE_SPEED, 0.0, 0.0));
+                camera.translate((ms, 0.0, 0.0));
             }
             KeyCode::Space => {
-                camera.translate((0.0, MOVE_SPEED, 0.0));
+                camera.translate((0.0, ms, 0.0));
             }
             KeyCode::ControlLeft => {
-                camera.translate((0.0, -MOVE_SPEED, 0.0));
+                camera.translate((0.0, -ms, 0.0));
             }
             _ => {}
         };

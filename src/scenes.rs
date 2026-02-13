@@ -9,12 +9,101 @@ use crate::{
 };
 
 use bevy_ecs::prelude::*;
-use glam::Vec4;
+use glam::{Vec3, Vec4};
 
 pub fn initialize(app: &mut BevyApp) {
     app.world
         .get_resource_or_init::<Schedules>()
         .add_systems(schedule::Startup, simple_scene);
+}
+
+fn spawn_cornell(
+    commands: &mut Commands,
+    mesh_server: &mut ResMut<MeshServer>,
+    material_server: &mut ResMut<MaterialServer>,
+    dims: Vec3,
+    pos: Vec3,
+) {
+    let gray_material = material_server.add_material(Material {
+        colour: Vec4::new(0.8, 0.8, 0.8, 1.0),
+        emissive: Vec4::ZERO,
+        metallic: 0.0,
+        roughness: 1.0,
+        ..Default::default()
+    });
+
+    let green_material = material_server.add_material(Material {
+        colour: Vec4::new(0.4, 0.8, 0.4, 1.0),
+        emissive: Vec4::ZERO,
+        metallic: 0.0,
+        roughness: 1.0,
+        ..Default::default()
+    });
+
+    let red_material = material_server.add_material(Material {
+        colour: Vec4::new(0.8, 0.4, 0.4, 1.0),
+        emissive: Vec4::ZERO,
+        metallic: 0.0,
+        roughness: 1.0,
+        ..Default::default()
+    });
+
+    let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
+
+    // Floor:
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
+            rotation: Vec4::new(f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+            translation: Vec4::new(0.0, -dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
+        },
+        gray_material,
+        rect_mesh,
+    ));
+
+    // Ceiling:
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(dims.x, dims.z, 1.0, 0.0),
+            rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
+            translation: Vec4::new(0.0, dims.y / 2.0, 0.0, 1.0) + pos.extend(0.0),
+        },
+        gray_material,
+        rect_mesh,
+    ));
+
+    // Back Wall:
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(dims.x, dims.y, 1.0, 0.0),
+            rotation: Vec4::new(f32::consts::PI * 2.0, 0.0, 0.0, 0.0),
+            translation: Vec4::new(0.0, 0.0, dims.z / 2.0, 1.0) + pos.extend(0.0),
+        },
+        gray_material,
+        rect_mesh,
+    ));
+
+    // Red Wall:
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(dims.z, dims.y, 1.0, 0.0),
+            rotation: Vec4::new(0.0, f32::consts::FRAC_PI_2, 0.0, 0.0),
+            translation: Vec4::new(dims.x / 2.0, 0.0, 0.0, 1.0) + pos.extend(0.0),
+        },
+        red_material,
+        rect_mesh,
+    ));
+
+    // Green Wall:
+    commands.spawn((
+        Transform {
+            scale: Vec4::new(dims.z, dims.y, 1.0, 0.0),
+            rotation: Vec4::new(0.0, -f32::consts::FRAC_PI_2, 0.0, 0.0),
+            translation: Vec4::new(-dims.x / 2.0, 0.0, 0.0, 1.0) + pos.extend(0.0),
+        },
+        green_material,
+        rect_mesh,
+    ));
 }
 
 fn simple_scene(
@@ -23,8 +112,8 @@ fn simple_scene(
     mut material_server: ResMut<MaterialServer>,
 ) {
     let cube_mesh = mesh_server.load_mesh(MeshDescriptor::Cube);
+    // let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
     let dragon_mesh = mesh_server.load_mesh(MeshDescriptor::TOBJ("./assets/dragon.obj".to_owned()));
-    let rect_mesh = mesh_server.load_mesh(MeshDescriptor::Rect);
     let gold_material = material_server.add_material(Material {
         colour: Vec4::new(1.0, 0.8, 0.0, 1.0),
         emissive: Vec4::ZERO,
@@ -40,33 +129,31 @@ fn simple_scene(
         ..Default::default()
     });
 
+    spawn_cornell(
+        &mut commands,
+        &mut mesh_server,
+        &mut material_server,
+        Vec3::ONE * 3.0,
+        Vec3::new(0.0, 0.0, 3.0),
+    );
     commands.spawn((
         Transform {
             scale: Vec4::ONE,
             rotation: Vec4::ZERO,
-            translation: Vec4::new(0.0, 0.0, 2.0, 0.0),
+            translation: Vec4::new(0.0, -0.4, 2.75, 0.0),
         },
         gold_material,
         dragon_mesh,
     ));
-    commands.spawn((
-        Transform {
-            scale: Vec4::new(3.0, 0.5, 3.0, 1.0),
-            rotation: Vec4::ZERO,
-            translation: Vec4::new(5.0, 1.0, 2.0, 0.0),
-        },
-        gray_material,
-        cube_mesh,
-    ));
-    commands.spawn((
-        Transform {
-            scale: Vec4::new(100.0, 100.0, 1.0, 1.0),
-            rotation: Vec4::new(-f32::consts::FRAC_PI_2, 0.0, 0.0, 0.0),
-            translation: Vec4::new(0.0, -1.0, 0.0, 0.0),
-        },
-        gray_material,
-        rect_mesh,
-    ));
+    // commands.spawn((
+    //     Transform {
+    //         scale: Vec4::new(3.0, 0.5, 3.0, 1.0),
+    //         rotation: Vec4::ZERO,
+    //         translation: Vec4::new(5.0, 1.0, 2.0, 0.0),
+    //     },
+    //     gray_material,
+    //     cube_mesh,
+    // ));
 }
 
 // use core::f32;

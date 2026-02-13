@@ -23,6 +23,7 @@ import bvh;
 
 // Tlas (only index the root):
 [[vk::binding(7,0)]] public StructuredBuffer<BVHNode> tlas_nodes;
+[[vk::binding(8,0)]] public StructuredBuffer<uint> tlas_to_instances;
 
 // Light Sources (indexed by intsance id):
-[[vk::binding(8,0)]] public StructuredBuffer<BVHNode> light_sources;
+[[vk::binding(9,0)]] public StructuredBuffer<BVHNode> light_sources;

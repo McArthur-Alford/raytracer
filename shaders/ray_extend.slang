@@ -12,6 +12,7 @@ import pathtracer;
 import random;
 import queue;
 import bvh;
+import colour;
 
 [[vk::binding(0,3)]] RWStructuredBuffer<uint> output;
 
@@ -35,10 +36,17 @@ void extensionMain(uint3 threadId : SV_DispatchThreadID) {
     s.rad = s.throughput * float3(1.0);
     queuePush(terminate_qh, terminate_qd, idx);
     return;
-  };
+  }
+
+  // Useful TLAS debug view:
+  // else {
+  //   float lerp = (float)(1+h.instance_id) / (float)tlas_nodes.getCount();
+  //   s.rad = HSVtoRGB(float3(lerp, 0.5, 0.5));
+  //   queuePush(terminate_qh, terminate_qd, idx);
+  //   return;
+  // }
 
   *hit = h;
-
   queuePush(shade_qh, shade_qd, idx);
 }
 
@@ -180,7 +188,7 @@ bool tlasFirstHit(
     }
 
     for (int i = node.start; i < node.end; i++) {
-      Instance instance = instances[i];
+      Instance instance = instances[tlas_to_instances[i]];
 
       Transform transform = transforms[instance.transform];
       float4x4 m = transform.matrix();
@@ -192,11 +200,11 @@ bool tlasFirstHit(
 
       float t2 = t;
       HitRecord h2;
-      if (blasFirstHit(r, i, last_inst, last_prim, t2, h2)) {
+      if (blasFirstHit(r, tlas_to_instances[i], last_inst, last_prim, t2, h2)) {
         h2.vert.position = mul(m, h2.vert.position);
         h2.vert.normal = normalize(mul(m, h2.vert.normal));
-        h2.instance_id = i;
         h2.front_face = dot(h2.vert.normal.xyz, ray.dir) < 0;
+        h2.instance_id = tlas_to_instances[i];
         t = t2;
         h = h2;
         success = true;

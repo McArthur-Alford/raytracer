@@ -280,7 +280,7 @@ impl MeshServer {
                 contents: bytemuck::cast_slice(&offsets),
                 usage: wgpu::BufferUsages::STORAGE,
             }),
-        )
+        );
     }
 }
 

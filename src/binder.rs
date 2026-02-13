@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZero};
+use std::{collections::HashMap, io::Read, num::NonZero};
 
 use bevy_ecs::prelude::*;
 use glam::Vec4;
@@ -34,6 +34,7 @@ pub struct SceneBindings {
 #[derive(Resource)]
 pub struct BinderLocal {
     tlas_cache: Option<wgpu::Buffer>,
+    tlas_iids: Option<wgpu::Buffer>,
     tlas_regenerate: bool,
 }
 
@@ -41,6 +42,7 @@ impl Default for BinderLocal {
     fn default() -> Self {
         Self {
             tlas_cache: Default::default(),
+            tlas_iids: None,
             tlas_regenerate: true,
         }
     }
@@ -151,6 +153,16 @@ pub fn binder_system(
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -231,10 +243,6 @@ pub fn binder_system(
         }
     }
 
-    if (binder_local.tlas_regenerate) {
-        dbg!(&instances);
-    }
-
     if instances.is_empty() {
         // Gonna have a hard time binding this :)
         return;
@@ -250,25 +258,34 @@ pub fn binder_system(
         // Regenerate the TLAS only when transforms or meshes have changed
         binder_local.tlas_regenerate = false;
         let tlas = TLAS::new(mesh_server.aabbs(), &transforms, &instances);
-        binder_local.tlas_cache = Some(
-            device
-                .0
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("TLAS BVHNode Buffer"),
-                    contents: bytemuck::cast_slice(
-                        tlas.nodes
-                            .clone()
-                            .into_iter()
-                            .map(|node| BVHNodeGPU::from(node))
-                            .collect_vec()
-                            .as_slice(),
-                    ),
-                    usage: wgpu::BufferUsages::STORAGE,
-                }),
-        );
+        let iids = tlas.instance_ids.iter().map(|i| *i as u32).collect_vec();
+        let nodes = tlas
+            .nodes
+            .clone()
+            .into_iter()
+            .map(|node| BVHNodeGPU::from(node))
+            .collect_vec();
+        binder_local.tlas_cache = Some(device.0.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("TLAS BVHNode Buffer"),
+                contents: bytemuck::cast_slice(nodes.as_slice()),
+                usage: wgpu::BufferUsages::STORAGE,
+            },
+        ));
+        binder_local.tlas_iids = Some(device.0.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("TLAS IID Buffer"),
+                contents: bytemuck::cast_slice(iids.as_slice()),
+                usage: wgpu::BufferUsages::STORAGE,
+            },
+        ));
     }
 
     let Some(tlas_node_buffer) = &binder_local.tlas_cache else {
+        return;
+    };
+
+    let Some(tlas_iids_buffer) = &binder_local.tlas_iids else {
         return;
     };
 
@@ -343,6 +360,10 @@ pub fn binder_system(
             },
             wgpu::BindGroupEntry {
                 binding: 8,
+                resource: tlas_iids_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 9,
                 resource: light_sources_buffer.as_entire_binding(),
             },
         ],

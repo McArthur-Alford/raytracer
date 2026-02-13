@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use bevy_ecs::prelude::*;
 use itertools::Itertools;
@@ -14,6 +14,7 @@ use winit::{
 
 use crate::{
     app::BevyApp,
+    delta_time::DeltaTime,
     render_resources::{RenderDevice, RenderQueue, RenderSurface},
     schedule,
 };
@@ -66,6 +67,7 @@ pub struct WinitApp {
     device_events: Vec<winit::event::DeviceEvent>,
     resize_event: Option<PhysicalSize<u32>>,
     first_resume: bool,
+    time: Instant,
 }
 
 impl WinitApp {
@@ -77,6 +79,7 @@ impl WinitApp {
             device_events: Vec::new(),
             resize_event: None,
             first_resume: false,
+            time: Instant::now(),
         }
     }
 }
@@ -113,6 +116,11 @@ impl WinitApp {
                 .resource_mut::<Messages<WinitResizeEvent>>()
                 .write(WinitResizeEvent(e))
         });
+
+        self.bevy_app
+            .world
+            .insert_resource(DeltaTime(self.time.elapsed().as_secs_f64()));
+        self.time = Instant::now();
 
         self.bevy_app.run();
     }

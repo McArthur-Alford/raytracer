@@ -25,6 +25,7 @@ void shadeMain(uint3 threadId : SV_DispatchThreadID) {
   let s = &samples[idx];
   let h = &extension_hit_records[idx];
   let wi = &extension_rays[idx];
+  Instance instance = instances[h.instance_id];
 
   // Lambertian scatter for now:
   float r1 = random_gen(randoms, 0);
@@ -37,7 +38,6 @@ void shadeMain(uint3 threadId : SV_DispatchThreadID) {
   wi.pos = h.vert.position.xyz;
 
   // Update throughput:
-  Instance instance = instances[h.instance_id];
   let mat = materials[instance.material];
   s.throughput *= mat.colour.xyz;
   s.bounces -= 1;

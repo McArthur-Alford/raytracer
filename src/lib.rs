@@ -26,6 +26,7 @@ mod render;
 mod render_resources;
 mod scenes;
 // mod shadow;
+mod delta_time;
 mod pathtracer_state;
 mod schedule;
 mod texture;
